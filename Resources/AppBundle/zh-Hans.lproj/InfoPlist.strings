@@ -1,0 +1,2 @@
+CFBundleDisplayName = "简易均衡器";
+NSAudioCaptureUsageDescription = "简易均衡器需要处理 Mac 播放的声音来应用均衡效果，不会录音，也不会上传任何内容。";

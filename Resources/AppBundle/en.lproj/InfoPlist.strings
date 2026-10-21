@@ -1,0 +1,2 @@
+CFBundleDisplayName = "EasyEQ";
+NSAudioCaptureUsageDescription = "EasyEQ processes your Mac's sound so it can apply your equalizer settings. Nothing is recorded or sent anywhere.";
