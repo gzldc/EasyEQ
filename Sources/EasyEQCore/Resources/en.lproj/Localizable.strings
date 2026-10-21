@@ -37,3 +37,9 @@
 "engine.retry" = "Retry";
 "error.saveFailed" = "Couldn't save the preset.";
 "error.deleteFailed" = "Couldn't delete the preset.";
+"preset.voice.desc" = "Less boom, clearer speech";
+"preset.voicePlus.desc" = "For very muddy voices";
+"preset.flat.desc" = "No processing";
+"settings.appearance" = "Appearance";
+"appearance.light" = "Light";
+"appearance.dark" = "Dark";

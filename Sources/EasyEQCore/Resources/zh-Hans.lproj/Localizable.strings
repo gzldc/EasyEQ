@@ -37,3 +37,9 @@
 "engine.retry" = "重试";
 "error.saveFailed" = "预设保存失败。";
 "error.deleteFailed" = "预设删除失败。";
+"preset.voice.desc" = "压掉闷音，让说话更清楚";
+"preset.voicePlus.desc" = "人声特别闷的时候用";
+"preset.flat.desc" = "不做任何处理";
+"settings.appearance" = "外观";
+"appearance.light" = "浅色";
+"appearance.dark" = "深色";

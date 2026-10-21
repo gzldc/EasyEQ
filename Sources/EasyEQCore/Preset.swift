@@ -35,6 +35,7 @@ public enum BuiltInPreset: String, CaseIterable, Codable, Sendable {
     case voice, voicePlus, flat
 
     public var nameKey: String { "preset.\(rawValue)" }
+    public var descriptionKey: String { "preset.\(rawValue).desc" }
 
     private var tenBandGains: [Double] {
         switch self {

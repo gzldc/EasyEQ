@@ -11,7 +11,8 @@ struct LocalizerTests {
         "zone.subbass", "zone.bass", "zone.warmth", "zone.mud", "zone.body",
         "zone.voice", "zone.presence", "zone.clarity", "zone.sibilance", "zone.air",
         "device.output", "permission.title", "permission.open",
-        "settings.language", "settings.system",
+        "settings.language", "settings.system", "settings.appearance", "appearance.light", "appearance.dark",
+        "preset.voice.desc", "preset.voicePlus.desc", "preset.flat.desc",
         "engine.starting", "engine.failed", "engine.retry", "error.saveFailed", "error.deleteFailed",
     ]
 

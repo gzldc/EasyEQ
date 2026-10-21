@@ -39,3 +39,29 @@ import Testing
     defaults.set(Data("not json".utf8), forKey: "EasyEQ.settings")
     #expect(SettingsStore(defaults: defaults).load() == AppSettings())
 }
+
+@Test func settingsFromPreviousVersionKeepFieldsAndDefaultAppearance() throws {
+    let id = UUID()
+    let encoded = try JSONEncoder().encode(
+        AppSettings(selection: .user(id), effectEnabled: false, lastLayout: .thirtyOne, language: .chinese))
+    // Drop the `appearance` key to reproduce the shape written before the setting existed.
+    var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+    object.removeValue(forKey: "appearance")
+    let old = try JSONSerialization.data(withJSONObject: object)
+
+    let decoded = try JSONDecoder().decode(AppSettings.self, from: old)
+    #expect(decoded.selection == .user(id))
+    #expect(decoded.effectEnabled == false)
+    #expect(decoded.lastLayout == .thirtyOne)
+    #expect(decoded.language == .chinese)
+    #expect(decoded.appearance == .system)
+}
+
+@Test func appearancePersists() {
+    let name = UUID().uuidString
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    let store = SettingsStore(defaults: defaults)
+    store.save(AppSettings(appearance: .dark))
+    #expect(store.load().appearance == .dark)
+}
