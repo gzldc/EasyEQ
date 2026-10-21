@@ -18,6 +18,10 @@ struct LocalizerTests {
         "preset.podcast.desc", "preset.movie.desc", "preset.music.desc", "preset.night.desc",
         "preset.lessBass.desc", "preset.bassBoost.desc", "preset.trebleBoost.desc",
         "engine.starting", "engine.failed", "engine.retry", "error.saveFailed", "error.deleteFailed",
+        "sidebar.newGroup", "sidebar.import", "menu.moveToGroup", "menu.ungrouped", "menu.export",
+        "menu.newPresetHere", "menu.deleteGroup", "menu.renameGroup", "sheet.groupName",
+        "confirm.deletePreset.title", "confirm.deletePreset.message", "confirm.delete",
+        "error.importFailed", "error.exportFailed", "error.groupSaveFailed",
     ]
 
     @Test func everyKeyExistsInBothLanguages() {
