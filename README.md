@@ -29,7 +29,7 @@
 
 ### 使用
 
-- 在顶部选择预设：人声 / 人声·强 / 原声，或你自己保存的预设。
+- 在左侧边栏选择预设：人声 / 人声·强 / 原声，或你自己保存的预设。
 - 拖动滑块调节各频段；双击某个滑块可将其归零。
 - 可切换 10 / 15 / 31 段。用户预设会记住自己的段数。
 - 关闭窗口后均衡效果仍然保留；按 ⌘Q 退出应用才会停止效果。
@@ -37,7 +37,7 @@
 
 ### 从源码构建
 
-需要 Swift 6.2 工具链。
+需要 Swift 6.0 或更高版本（Xcode 16 及以上）。
 
 ```sh
 swift test            # 运行测试
@@ -84,7 +84,7 @@ EasyEQ is a free, open-source, native macOS system-wide equalizer built with Swi
 
 ### Usage
 
-- Pick a preset at the top: Voice / Voice+ / Flat, or one you saved.
+- Pick a preset in the left sidebar: Voice / Voice+ / Flat, or one you saved.
 - Drag a slider to adjust its band; double-click a slider to reset it to 0.
 - Switch between 10, 15 and 31 bands. Each user preset remembers its own band count.
 - Closing the window keeps the effect running; press ⌘Q to quit and stop it.
@@ -92,7 +92,7 @@ EasyEQ is a free, open-source, native macOS system-wide equalizer built with Swi
 
 ### Build from source
 
-Requires the Swift 6.2 toolchain.
+Requires Swift 6.0 or later (Xcode 16+).
 
 ```sh
 swift test            # run the tests
