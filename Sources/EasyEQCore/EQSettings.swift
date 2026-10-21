@@ -46,6 +46,7 @@ public struct EQSettings: Codable, Equatable, Sendable {
     }
 
     /// 3-tap smoothing (0.25 / 0.5 / 0.25; ends use 0.75 self + 0.25 neighbour), rounded to 0.1 dB and clamped.
+    /// Like painting, results within ±0.3 dB of flat snap to exactly 0 (so a smoothed curve leaves no faint residue).
     public func smoothed() -> EQSettings {
         let n = gains.count
         guard n > 1 else { return self }
@@ -60,7 +61,7 @@ public struct EQSettings: Codable, Equatable, Sendable {
                 v = 0.25 * gains[i - 1] + 0.5 * gains[i] + 0.25 * gains[i + 1]
             }
             let r = min(max((v * 10).rounded() / 10, lo), hi)
-            return r == 0 ? 0 : r
+            return abs(r) < 0.3 ? 0 : r   // snap to zero, also normalises -0.0
         }
         return EQSettings(layout: layout, gains: out)
     }
