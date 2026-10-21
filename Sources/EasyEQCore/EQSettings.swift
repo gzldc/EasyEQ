@@ -45,6 +45,29 @@ public struct EQSettings: Codable, Equatable, Sendable {
         return EQSettings(layout: target, gains: newGains)
     }
 
+    /// 3-tap smoothing (0.25 / 0.5 / 0.25; ends use 0.75 self + 0.25 neighbour), rounded to 0.1 dB and clamped.
+    public func smoothed() -> EQSettings {
+        let n = gains.count
+        guard n > 1 else { return self }
+        let lo = BandLayout.gainRange.lowerBound, hi = BandLayout.gainRange.upperBound
+        let out = (0..<n).map { i -> Double in
+            let v: Double
+            if i == 0 {
+                v = 0.75 * gains[0] + 0.25 * gains[1]
+            } else if i == n - 1 {
+                v = 0.75 * gains[n - 1] + 0.25 * gains[n - 2]
+            } else {
+                v = 0.25 * gains[i - 1] + 0.5 * gains[i] + 0.25 * gains[i + 1]
+            }
+            let r = min(max((v * 10).rounded() / 10, lo), hi)
+            return r == 0 ? 0 : r
+        }
+        return EQSettings(layout: layout, gains: out)
+    }
+
+    /// All bands set to 0 dB, same layout.
+    public func zeroed() -> EQSettings { .flat(layout) }
+
     /// Negative preamp (dB) that offsets the curve's peak boost across 20 Hz–20 kHz; 0 if there is no boost.
     public func autoPreampDB(sampleRate: Double = 48_000) -> Double {
         let points = 200
