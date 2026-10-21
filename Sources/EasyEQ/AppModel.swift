@@ -4,6 +4,7 @@ import EasyEQAudio
 import EasyEQCore
 import Foundation
 import os
+import UniformTypeIdentifiers
 
 private let presetLog = Logger(subsystem: "app.easyeq.EasyEQ", category: "presets")
 
@@ -13,6 +14,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var session: EditingSession
     @Published private(set) var userPresets: [Preset]
     @Published private(set) var settings: AppSettings
+    /// User groups (display order) and which sidebar sections are collapsed; persisted in `groups.json`.
+    @Published private(set) var groupLayout: GroupLayout
     /// Last preset-file/IO failure, for the UI to surface. Never cleared automatically.
     @Published var lastError: String?
     /// Set when `save()` is invoked on a built-in preset; the UI shows the hint and opens Save As.
@@ -23,12 +26,15 @@ final class AppModel: ObservableObject {
 
     private let presetStore: PresetStore
     private let settingsStore: SettingsStore
+    private let groupStore: GroupStore
 
     init(presetStore: PresetStore = PresetStore(directory: PresetStore.defaultDirectory),
          settingsStore: SettingsStore = SettingsStore(defaults: .standard),
+         groupStore: GroupStore = GroupStore(fileURL: GroupStore.defaultFileURL),
          engine: SystemAudioEngine? = nil) {
         self.presetStore = presetStore
         self.settingsStore = settingsStore
+        self.groupStore = groupStore
         self.engine = engine ?? SystemAudioEngine()
 
         var loaded = settingsStore.load()
@@ -53,6 +59,7 @@ final class AppModel: ObservableObject {
 
         self.settings = loaded
         self.userPresets = presets
+        self.groupLayout = groupStore.load()
         self.session = EditingSession(selection: selection, saved: saved)
         self.localizer = Localizer(language: AppSettings.resolve(loaded.language, preferredLanguages: Locale.preferredLanguages))
 
@@ -118,18 +125,21 @@ final class AppModel: ObservableObject {
             presetLog.error("Save requested but the selected user preset no longer exists")
             return
         }
-        guard write(Preset(id: id, name: existing.name, settings: session.current)) else { return }
+        guard write(Preset(id: id, name: existing.name, settings: session.current, groupID: existing.groupID)) else { return }
         session.markSaved(as: .user(id))
         reloadUserPresets()
         persistSettings()
     }
 
     @discardableResult
-    func saveAs(name: String) -> Bool { createPreset(named: name) }
+    func saveAs(name: String) -> Bool { createPreset(named: name, inGroup: selectedPresetGroupID) }
 
-    /// Starts from the current curve, like Save As.
+    /// Starts from the current curve, like Save As. Goes into `groupID` when given, otherwise into the
+    /// group of the currently selected user preset.
     @discardableResult
-    func newPreset(name: String) -> Bool { createPreset(named: name) }
+    func newPreset(name: String, inGroup groupID: UUID? = nil) -> Bool {
+        createPreset(named: name, inGroup: groupID ?? selectedPresetGroupID)
+    }
 
     @discardableResult
     func rename(_ id: UUID, to name: String) -> Bool {
@@ -144,7 +154,8 @@ final class AppModel: ObservableObject {
         return true
     }
 
-    func delete(_ id: UUID) {
+    /// Permanently deletes a user preset. The UI asks for confirmation first.
+    func deletePresetConfirmed(_ id: UUID) {
         do {
             try presetStore.delete(id: id)
         } catch {
@@ -154,6 +165,113 @@ final class AppModel: ObservableObject {
         reloadUserPresets()
         let next = EditingSession.selectionAfterDeleting(id, current: session.selection)
         if next != session.selection { select(next) }
+    }
+
+    // MARK: - Groups
+
+    @discardableResult
+    func createGroup(named name: String) -> Bool {
+        var layout = groupLayout
+        guard layout.addGroup(named: name) != nil else { return false }
+        commit(layout)
+        return true
+    }
+
+    @discardableResult
+    func renameGroup(_ id: UUID, to name: String) -> Bool {
+        var layout = groupLayout
+        guard layout.renameGroup(id, to: name) else { return false }
+        commit(layout)
+        return true
+    }
+
+    /// Removes the group only. Its presets keep their files and show up under "My Presets" again.
+    func deleteGroup(_ id: UUID) {
+        var layout = groupLayout
+        layout.removeGroup(id)
+        commit(layout)
+    }
+
+    /// Moves a user preset into `groupID` (`nil` = ungrouped). Unknown presets and groups are ignored.
+    func move(_ presetID: UUID, toGroup groupID: UUID?) {
+        guard var preset = userPresets.first(where: { $0.id == presetID }) else { return }
+        if let groupID, !groupLayout.groups.contains(where: { $0.id == groupID }) { return }
+        guard preset.groupID != groupID else { return }
+        preset.groupID = groupID
+        guard write(preset) else { return }
+        reloadUserPresets()
+        // Keep the selected preset visible if it was just moved into a collapsed group.
+        if let groupID, session.selection == .user(presetID) { expandGroup(groupID) }
+    }
+
+    func toggleCollapsed(_ key: String) {
+        var layout = groupLayout
+        layout.toggleCollapsed(key)
+        commit(layout)
+    }
+
+    // MARK: - Import and export
+
+    func exportPreset(_ id: UUID) {
+        guard let preset = userPresets.first(where: { $0.id == id }) else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = Self.exportFileName(for: preset)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try PresetTransfer.exportData(preset).write(to: url, options: .atomic)
+        } catch {
+            report(key: "error.exportFailed", underlying: error)
+        }
+    }
+
+    /// Lets the user pick `.json` files and imports them next to the selected preset (its group, if any).
+    func importPresets() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK else { return }
+        var files: [(name: String, data: Data)] = []
+        var unreadable: [String] = []
+        for url in panel.urls {
+            if let data = try? Data(contentsOf: url) {
+                files.append((url.lastPathComponent, data))
+            } else {
+                unreadable.append(url.lastPathComponent)
+            }
+        }
+        importPresets(files: files, alsoFailed: unreadable)
+    }
+
+    private func importPresets(files: [(name: String, data: Data)], alsoFailed: [String]) {
+        let target = selectedPresetGroupID
+        let result = PresetTransfer.importPresets(from: files, existing: userPresets, into: target)
+        var failed = alsoFailed + result.failedFiles
+        var wroteAny = false
+        for preset in result.imported {
+            do {
+                try presetStore.save(preset)
+                wroteAny = true
+            } catch {
+                presetLog.error("import save failed: \(error.localizedDescription, privacy: .public)")
+                failed.append(preset.name)
+            }
+        }
+        if wroteAny {
+            reloadUserPresets()
+            if let target { expandGroup(target) }
+        }
+        if !failed.isEmpty {
+            lastError = String(format: localizer.t("error.importFailed"), failed.joined(separator: ", "))
+        }
+    }
+
+    /// `PresetTransfer.suggestedFileName`, but never empty or a hidden file.
+    static func exportFileName(for preset: Preset) -> String {
+        let suggestion = PresetTransfer.suggestedFileName(for: preset).trimmingCharacters(in: .whitespacesAndNewlines)
+        return suggestion.hasPrefix(".") || suggestion.isEmpty ? "Preset.json" : suggestion
     }
 
     // MARK: - Settings
@@ -185,14 +303,40 @@ final class AppModel: ObservableObject {
 
     // MARK: - Private
 
-    private func createPreset(named name: String) -> Bool {
+    /// The group of the selected user preset, if that group still exists.
+    private var selectedPresetGroupID: UUID? {
+        guard case .user(let id) = session.selection,
+              let groupID = userPresets.first(where: { $0.id == id })?.groupID,
+              groupLayout.groups.contains(where: { $0.id == groupID }) else { return nil }
+        return groupID
+    }
+
+    private func createPreset(named name: String, inGroup groupID: UUID?) -> Bool {
         guard let unique = EditingSession.uniqueName(name, existing: userPresets.map(\.name)) else { return false }
         let id = UUID()
-        guard write(Preset(id: id, name: unique, settings: session.current)) else { return false }
+        guard write(Preset(id: id, name: unique, settings: session.current, groupID: groupID)) else { return false }
         session.markSaved(as: .user(id))
         reloadUserPresets()
         persistSettings()
+        if let groupID { expandGroup(groupID) }   // the new preset is selected, so it must be visible
         return true
+    }
+
+    private func expandGroup(_ id: UUID) {
+        guard groupLayout.isCollapsed(id.uuidString) else { return }
+        var layout = groupLayout
+        layout.toggleCollapsed(id.uuidString)
+        commit(layout)
+    }
+
+    /// Applies and persists a new layout. The in-memory layout changes even if the write fails.
+    private func commit(_ layout: GroupLayout) {
+        groupLayout = layout
+        do {
+            try groupStore.save(layout)
+        } catch {
+            report(key: "error.groupSaveFailed", underlying: error)
+        }
     }
 
     private func write(_ preset: Preset) -> Bool {

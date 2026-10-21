@@ -5,6 +5,10 @@ enum NameSheetMode: Equatable {
     case new
     case saveAs
     case rename(UUID)
+    case newGroup
+    case renameGroup(UUID)
+    /// A new preset placed in the given group.
+    case newPresetIn(UUID)
 }
 
 struct NameSheet: View {
@@ -30,7 +34,7 @@ struct NameSheet: View {
                     .foregroundStyle(theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text(localizer.t("sheet.name"))
+            Text(localizer.t(isGroupMode ? "sheet.groupName" : "sheet.name"))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(theme.textPrimary)
             TextField("", text: $name)
@@ -64,6 +68,13 @@ struct NameSheet: View {
         .onAppear { focused = true }
     }
 
+    private var isGroupMode: Bool {
+        switch request.mode {
+        case .newGroup, .renameGroup: return true
+        default: return false
+        }
+    }
+
     private var isBlank: Bool {
         name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -74,6 +85,9 @@ struct NameSheet: View {
         case .new: model.newPreset(name: name)
         case .saveAs: model.saveAs(name: name)
         case .rename(let id): model.rename(id, to: name)
+        case .newGroup: model.createGroup(named: name)
+        case .renameGroup(let id): model.renameGroup(id, to: name)
+        case .newPresetIn(let groupID): model.newPreset(name: name, inGroup: groupID)
         }
         dismiss()
     }
