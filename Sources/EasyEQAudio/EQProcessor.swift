@@ -184,12 +184,17 @@ public final class EQProcessor: @unchecked Sendable {
         for i in 0..<Self.maxBands { dirty[i] = true }
     }
 
-    /// True when nothing is ramping and every stage is at unity, so the input can pass through untouched.
+    /// True when the preamp and every band are at exactly 0 dB with no ramp pending, so the input can pass
+    /// through untouched. The limiter does not keep the processor out of bypass: "off" must equal the raw sound.
     private func isSettled() -> Bool {
         if targetPreampDB != 0 || currentPreampDB != 0 { return false }
         for i in 0..<bandCount where targetGains[i] != 0 || currentGains[i] != 0 || dirty[i] { return false }
-        for c in 0..<maxChannels where limiterGain[c] != 1 { return false }
         return true
+    }
+
+    /// Entering bypass: drop any limiter reduction left over from an earlier boost.
+    private func resetLimiters() {
+        for c in 0..<maxChannels { limiterGain[c] = 1 }
     }
 
     /// Advances the one-pole ramps by one step and refreshes coefficients of the bands that moved.
@@ -240,7 +245,11 @@ public final class EQProcessor: @unchecked Sendable {
 
     public func process(_ buffers: UnsafeMutableAudioBufferListPointer, frameCount: Int) {
         pullPending()
-        if bandCount == 0 || isSettled() { return }
+        if bandCount == 0 { return }
+        if isSettled() {
+            resetLimiters()
+            return
+        }
 
         let channelTotal = min(buffers.count, maxChannels)
         var start = 0
@@ -249,6 +258,11 @@ public final class EQProcessor: @unchecked Sendable {
             let preStart = preampLinear
             let preEnd = advanceSmoothing()
             preampLinear = preEnd
+            if isSettled() {   // the ramp just reached 0 dB: bypass limiter and clamp from here on
+                resetLimiters()
+                start += n
+                continue
+            }
             let preStep = (preEnd - preStart) / Double(n)
 
             for c in 0..<channelTotal {

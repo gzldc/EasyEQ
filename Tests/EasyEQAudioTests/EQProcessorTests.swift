@@ -226,3 +226,35 @@ private func settings(_ layout: BandLayout, _ gains: [Int: Double]) -> EQSetting
     #expect(levelChangeDB(afterMs: 0) > -4)
     #expect(abs(levelChangeDB(afterMs: 150) - (-12)) <= 0.5)
 }
+
+/// Noise-free hot signal: a 440 Hz sine whose peaks reach 0.95 (above the -1 dBFS limiter threshold).
+private func hotSine(seconds: Double) -> [Float] {
+    sine(hz: 440, sr: 48_000, seconds: seconds, amp: 0.95)
+}
+
+@Test func flatAndDisabledBypassLimiterOnHotInput() {
+    let input = hotSine(seconds: 0.5)
+    let boost = settings(.ten, [5: 12, 3: 12])
+
+    // Flat from the start, and disabled from the start: untouched even though peaks exceed -1 dBFS.
+    for (s, enabled) in [(EQSettings.flat(.ten), true), (boost, false)] {
+        let p = EQProcessor(sampleRate: 48_000, channelCount: 1)
+        p.update(settings: s, enabled: enabled)
+        let out = run(p, input: [input])[0]
+        for (a, b) in zip(input, out) { #expect(abs(a - b) <= 1e-5) }
+    }
+
+    // Boosted first (limiter engages on hot peaks), then disabled / flattened mid-stream.
+    for (target, enabled) in [(boost, false), (EQSettings.flat(.ten), true)] {
+        let p = EQProcessor(sampleRate: 48_000, channelCount: 1)
+        p.update(settings: boost, enabled: true)
+        let long = hotSine(seconds: 1)
+        let out = run(p, input: [long], beforeBlock: { block in
+            if block == 20 { p.update(settings: target, enabled: enabled) }
+        })[0]
+        // Earlier the limiter was acting on the boosted signal...
+        #expect(zip(long, out).prefix(9_600).contains { abs($0 - $1) > 1e-2 })
+        // ...and once the fade completes the output equals the input exactly, peaks above 0.891 included.
+        for i in 24_000..<long.count { #expect(abs(long[i] - out[i]) <= 1e-5) }
+    }
+}
