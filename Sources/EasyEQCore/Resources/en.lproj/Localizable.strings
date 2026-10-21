@@ -82,4 +82,5 @@
 "menu.saveAs" = "Save As…";
 "menu.toggleEffect" = "Turn Effect On/Off";
 "settings.launchAtLogin" = "Launch at Login";
+"settings.launchAtLogin.moveHint" = "Move EasyEQ to the Applications folder to use this.";
 "error.loginItemFailed" = "Couldn't change the login item.";

@@ -82,4 +82,5 @@
 "menu.saveAs" = "另存为…";
 "menu.toggleEffect" = "打开/关闭效果";
 "settings.launchAtLogin" = "开机自动启动";
+"settings.launchAtLogin.moveHint" = "请先把 EasyEQ 移到“应用程序”文件夹再开启。";
 "error.loginItemFailed" = "开机启动设置失败。";

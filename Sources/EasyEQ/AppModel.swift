@@ -343,6 +343,12 @@ final class AppModel: ObservableObject {
 
     func toggleEffect() { setEffectEnabled(!settings.effectEnabled) }
 
+    /// Launch at Login is offered only from an Applications folder (a login item registered from the mounted DMG
+    /// or Downloads would point at a path that is gone later). An already-registered item can still be switched off.
+    var launchAtLoginAvailable: Bool {
+        launchAtLogin || InstallLocation.isInApplicationsFolder(Bundle.main.bundleURL)
+    }
+
     /// Re-reads the login-item state from the system (the user may have changed it in System Settings).
     func refreshLaunchAtLogin() {
         let status = SMAppService.mainApp.status
@@ -350,6 +356,7 @@ final class AppModel: ObservableObject {
     }
 
     func setLaunchAtLogin(_ on: Bool) {
+        if on && !launchAtLoginAvailable { return }
         do {
             if on {
                 try SMAppService.mainApp.register()

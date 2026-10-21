@@ -43,6 +43,13 @@ struct SettingsView: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .tint(theme.accentStart)
+                    .disabled(!model.launchAtLoginAvailable)
+                }
+                if !model.launchAtLoginAvailable {
+                    Text(localizer.t("settings.launchAtLogin.moveHint"))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if let message = model.loginItemError {
                     Text(message)
