@@ -88,11 +88,29 @@ public final class GroupStore {
         return base.appendingPathComponent("EasyEQ", isDirectory: true).appendingPathComponent("groups.json")
     }
 
-    /// Missing or corrupt file yields an empty layout (presets themselves are never affected).
+    /// Missing file yields an empty layout. A file that exists but cannot be decoded is moved aside to
+    /// `groups.json.corrupt-<yyyyMMdd-HHmmss>` (same directory) first, so the next save cannot overwrite the user's
+    /// group names; the result is an empty layout (presets themselves are never affected).
     public func load() -> GroupLayout {
-        guard let data = try? Data(contentsOf: fileURL),
-              let layout = try? JSONDecoder().decode(GroupLayout.self, from: data) else { return GroupLayout() }
-        return layout
+        guard let data = try? Data(contentsOf: fileURL) else { return GroupLayout() }
+        if let layout = try? JSONDecoder().decode(GroupLayout.self, from: data) { return layout }
+        quarantineCorruptFile()
+        return GroupLayout()
+    }
+
+    private func quarantineCorruptFile() {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let stamp = formatter.string(from: Date())
+        let fm = FileManager.default
+        var target = fileURL.appendingPathExtension("corrupt-\(stamp)")
+        var n = 2
+        while fm.fileExists(atPath: target.path) {   // two corrupt files in the same second
+            target = fileURL.appendingPathExtension("corrupt-\(stamp)-\(n)")
+            n += 1
+        }
+        try? fm.moveItem(at: fileURL, to: target)
     }
 
     public func save(_ layout: GroupLayout) throws {

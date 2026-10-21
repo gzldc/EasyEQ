@@ -89,3 +89,34 @@ private func cleanup(_ url: URL) {
     let layout = try JSONDecoder().decode(GroupLayout.self, from: Data(raw.utf8))
     #expect(layout.groups.map(\.name) == ["First", "Third"])
 }
+
+@Test func corruptGroupsFileIsMovedAsideNotOverwritten() throws {
+    let url = tempFile(); defer { cleanup(url) }
+    let store = GroupStore(fileURL: url)
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let damaged = #"{"groups":[{"id":"oops","name":"Work"}"#   // truncated
+    try damaged.write(to: url, atomically: true, encoding: .utf8)
+
+    #expect(store.load() == GroupLayout())
+    #expect(!FileManager.default.fileExists(atPath: url.path))
+    let siblings = try FileManager.default.contentsOfDirectory(atPath: url.deletingLastPathComponent().path)
+    let backups = siblings.filter { $0.hasPrefix("groups.json.corrupt-") }
+    #expect(backups.count == 1)
+    let stamp = String(backups[0].dropFirst("groups.json.corrupt-".count))
+    #expect(stamp.range(of: #"^\d{8}-\d{6}$"#, options: .regularExpression) != nil)
+    let kept = try String(contentsOf: url.deletingLastPathComponent().appendingPathComponent(backups[0]), encoding: .utf8)
+    #expect(kept == damaged)
+
+    // A later save writes a fresh file and leaves the backup alone.
+    var layout = GroupLayout(); layout.addGroup(named: "New")
+    try store.save(layout)
+    #expect(store.load() == layout)
+    #expect(try FileManager.default.contentsOfDirectory(atPath: url.deletingLastPathComponent().path)
+        .filter { $0.hasPrefix("groups.json.corrupt-") }.count == 1)
+}
+
+@Test func missingGroupsFileCreatesNoBackup() throws {
+    let url = tempFile(); defer { cleanup(url) }
+    #expect(GroupStore(fileURL: url).load() == GroupLayout())
+    #expect(!FileManager.default.fileExists(atPath: url.deletingLastPathComponent().path))
+}
