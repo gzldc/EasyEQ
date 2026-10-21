@@ -1,7 +1,21 @@
 import SwiftUI
 
-/// One vertical band slider. Dragging anywhere in the column maps the pointer's y straight to gain;
-/// double-click resets to 0 dB.
+/// Where a slider's track sits inside the strip's coordinate space, reported so the strip's shared paint
+/// gesture can map the pointer's y to a gain exactly as the thumb is drawn.
+struct BandTrackMetrics: Equatable {
+    var minY: CGFloat
+    var height: CGFloat
+}
+
+struct BandTrackKey: PreferenceKey {
+    static var defaultValue: BandTrackMetrics?
+    static func reduce(value: inout BandTrackMetrics?, nextValue: () -> BandTrackMetrics?) {
+        value = value ?? nextValue()
+    }
+}
+
+/// One vertical band slider (display only). Pointer input — painting, double-click reset, hover, scroll — is
+/// handled for the whole row by `BandStrip`.
 struct BandSlider: View {
     let value: Double
     let frequency: Double
@@ -10,16 +24,27 @@ struct BandSlider: View {
     /// Zone name shown as a tooltip when there is no visible label.
     var tooltip: String?
     var compact = false
+    /// Whether the frequency label is drawn (31 bands label every other column); the row keeps its height.
+    var showsFrequency = true
+    /// Accessibility increment / decrement only.
     let onChange: (Double) -> Void
-    let onReset: () -> Void
 
-    private static let range = 12.0
+    static let range = 12.0
     private static let railWidth: CGFloat = 6
 
     @Environment(\.theme) private var theme
 
     /// 18 pt normally; 31 bands leave only ~16 pt per column, so the thumb shrinks to avoid overlapping.
-    private var thumbSize: CGFloat { compact ? 14 : 18 }
+    private var thumbSize: CGFloat { Self.thumbSize(compact: compact) }
+
+    static func thumbSize(compact: Bool) -> CGFloat { compact ? 14 : 18 }
+
+    /// Smallest height a strip of these sliders needs: the 150 pt track plus its text rows.
+    static func minHeight(compact: Bool, hasZoneLabel: Bool) -> CGFloat {
+        let row: CGFloat = compact ? 11 : 15
+        let rows: CGFloat = hasZoneLabel ? 3 : 2
+        return 150 + rows * row + rows * 4
+    }
 
     /// Fixed row height so text scaling never changes the track geometry (all columns stay level).
     private var textRowHeight: CGFloat { compact ? 11 : 15 }
@@ -36,9 +61,7 @@ struct BandSlider: View {
             if let label {
                 textRow(label, font: .system(size: 11), color: theme.textSecondary)
             }
-            textRow(Self.frequencyText(frequency),
-                    font: .system(size: compact ? 8 : 11),
-                    color: theme.textSecondary)
+            frequencyRow
         }
         .frame(maxWidth: .infinity)
         .help(tooltip ?? "")
@@ -54,6 +77,27 @@ struct BandSlider: View {
         }
     }
 
+    /// Compact columns are narrower than their labels: the label may spill into the (empty) neighbours instead
+    /// of shrinking to illegibility.
+    @ViewBuilder private var frequencyRow: some View {
+        if compact {
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: textRowHeight)
+                .overlay {
+                    if showsFrequency {
+                        Text(Self.frequencyText(frequency))
+                            .font(.system(size: 8))
+                            .foregroundStyle(theme.textSecondary)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+        } else {
+            textRow(Self.frequencyText(frequency), font: .system(size: 11), color: theme.textSecondary)
+        }
+    }
+
     /// One line of text in a fixed-height row; long text shrinks inside the row instead of resizing it.
     private func textRow(_ text: String, font: Font, color: Color) -> some View {
         Text(text)
@@ -61,6 +105,7 @@ struct BandSlider: View {
             .foregroundStyle(color)
             .lineLimit(1)
             .minimumScaleFactor(0.5)
+            .padding(.horizontal, 1)
             .frame(maxWidth: .infinity)
             .frame(height: textRowHeight)
     }
@@ -94,15 +139,9 @@ struct BandSlider: View {
                     .shadow(color: theme.thumbShadow, radius: 2, y: 1)
                     .position(x: geo.size.width / 2, y: thumbY)
             }
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { drag in
-                        let fraction = (drag.location.y - r) / usable
-                        onChange(Self.range - fraction * 2 * Self.range)
-                    }
-            )
-            .simultaneousGesture(TapGesture(count: 2).onEnded { onReset() })
+            .preference(key: BandTrackKey.self,
+                        value: BandTrackMetrics(minY: geo.frame(in: .named(BandStrip.space)).minY,
+                                                height: geo.size.height))
         }
     }
 

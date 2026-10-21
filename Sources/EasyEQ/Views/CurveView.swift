@@ -2,12 +2,18 @@ import EasyEQCore
 import SwiftUI
 
 /// Overall frequency response of the current settings: log-frequency x axis (20 Hz-20 kHz), y axis +/-12 dB.
+/// Pressing and dragging on it paints gains like the slider strip does.
 struct CurveView: View {
     let settings: EQSettings
+    let onPaint: ([(index: Int, gain: Double)]) -> Void
 
     var body: some View {
-        CurveCanvas(samples: ResponseSamples(settings: settings))
-            .accessibilityHidden(true)
+        GeometryReader { geo in
+            CurveCanvas(samples: ResponseSamples(settings: settings))
+                .paintOnCurve(bandCount: settings.gains.count, size: geo.size,
+                              inset: CurveCanvas.inset, onPaint: onPaint)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -50,12 +56,13 @@ private struct CurveCanvas: View, Animatable {
     }
 
     private static let rangeDB = 12.0
+    /// Keeps the 2.5 pt stroke (and its round caps) at +/-12 dB from being cut off at the edges.
+    static let inset: CGFloat = 2
 
     var body: some View {
         Canvas { context, size in
             let w = size.width, h = size.height
-            // Inset so the 2.5 pt stroke at +/-12 dB (and its round caps) isn't cut off at the edges.
-            let inset: CGFloat = 2
+            let inset = Self.inset
             func y(_ db: Double) -> CGFloat {
                 let clamped = min(max(db, -Self.rangeDB), Self.rangeDB)
                 return inset + (h - 2 * inset) * (1 - (clamped + Self.rangeDB) / (2 * Self.rangeDB))
