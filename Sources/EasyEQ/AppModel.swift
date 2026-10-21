@@ -4,6 +4,7 @@ import EasyEQAudio
 import EasyEQCore
 import Foundation
 import os
+import ServiceManagement
 import UniformTypeIdentifiers
 
 private let presetLog = Logger(subsystem: "app.easyeq.EasyEQ", category: "presets")
@@ -18,8 +19,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var groupLayout: GroupLayout
     /// Last preset-file/IO failure, for the UI to surface. Never cleared automatically.
     @Published var lastError: String?
-    /// Set when `save()` is invoked on a built-in preset; the UI shows the hint and opens Save As.
-    @Published var showBuiltInReadOnlyHint = false
+    /// The name sheet to show, if any. Lives here (not in the window) so menu commands can open it too.
+    @Published var pendingSheet: NameSheetRequest? {
+        didSet { if pendingSheet != nil { requestMainWindow?() } }
+    }
+    /// Whether the app is registered as a login item (read from the system, which the user can also change).
+    @Published private(set) var launchAtLogin = false
+    /// Localized failure text for the last login-item change; shown next to the toggle.
+    @Published private(set) var loginItemError: String?
+    /// Installed by the app delegate: brings the main window forward so a sheet opened from a menu is visible.
+    var requestMainWindow: (() -> Void)?
 
     let localizer: Localizer
     let engine: SystemAudioEngine
@@ -65,6 +74,7 @@ final class AppModel: ObservableObject {
 
         settingsStore.save(loaded)
         applyToEngine()
+        refreshLaunchAtLogin()
     }
 
     /// Starts system-wide processing with the restored curve.
@@ -140,7 +150,9 @@ final class AppModel: ObservableObject {
     /// Saves in place for user presets. For built-ins nothing is written; the UI is asked to show the hint.
     func save() {
         guard session.canSaveInPlace else {
-            showBuiltInReadOnlyHint = true
+            pendingSheet = NameSheetRequest(mode: .saveAs,
+                                            initial: displayName(for: session.selection),
+                                            message: localizer.t("editor.builtInReadOnly"))
             return
         }
         guard case .user(let id) = session.selection,
@@ -156,6 +168,11 @@ final class AppModel: ObservableObject {
 
     @discardableResult
     func saveAs(name: String) -> Bool { createPreset(named: name, inGroup: selectedPresetGroupID) }
+
+    /// Opens the Save As sheet for the current curve.
+    func presentSaveAs() {
+        pendingSheet = NameSheetRequest(mode: .saveAs, initial: displayName(for: session.selection))
+    }
 
     /// Starts from the current curve, like Save As. Goes into `groupID` when given, otherwise into the
     /// group of the currently selected user preset.
@@ -303,6 +320,29 @@ final class AppModel: ObservableObject {
         settings.effectEnabled = on
         persistSettings()
         applyToEngine()
+    }
+
+    func toggleEffect() { setEffectEnabled(!settings.effectEnabled) }
+
+    /// Re-reads the login-item state from the system (the user may have changed it in System Settings).
+    func refreshLaunchAtLogin() {
+        let status = SMAppService.mainApp.status
+        launchAtLogin = status == .enabled || status == .requiresApproval
+    }
+
+    func setLaunchAtLogin(_ on: Bool) {
+        do {
+            if on {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            loginItemError = nil
+        } catch {
+            presetLog.error("login item change failed: \(error.localizedDescription, privacy: .public)")
+            loginItemError = localizer.t("error.loginItemFailed")
+        }
+        refreshLaunchAtLogin()
     }
 
     func setLanguage(_ choice: LanguageChoice) {

@@ -9,6 +9,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Installed by the main window's content so the Dock icon can bring a closed window back.
     var reopenMainWindow: (() -> Void)?
 
+    override init() {
+        super.init()
+        // Opening a sheet from a menu command must work even when the window was closed.
+        model.requestMainWindow = { [weak self] in
+            self?.reopenMainWindow?()
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         model.start()
@@ -23,7 +32,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        model.engine.stop()
+        // Destroys the tap first (un-muting system audio). Bounded, so a hung coreaudiod cannot block quitting.
+        model.engine.stopForTermination(timeout: 2)
+    }
+}
+
+/// File-menu commands: New Preset, Save, Save As, and the effect toggle.
+struct EasyEQCommands: Commands {
+    @ObservedObject var model: AppModel
+    @ObservedObject var localizer: Localizer
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button(localizer.t("menu.newPreset")) {
+                model.pendingSheet = NameSheetRequest(mode: .new)
+            }
+            .keyboardShortcut("n", modifiers: .command)
+            .disabled(model.pendingSheet != nil)
+        }
+        CommandGroup(after: .saveItem) {
+            Button(localizer.t("menu.save")) { model.save() }
+                .keyboardShortcut("s", modifiers: .command)
+                .disabled(model.pendingSheet != nil)
+            Button(localizer.t("menu.saveAs")) { model.presentSaveAs() }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+                .disabled(model.pendingSheet != nil)
+            Divider()
+            Button(localizer.t("menu.toggleEffect")) { model.toggleEffect() }
+                .keyboardShortcut("e", modifiers: .command)
+        }
     }
 }
 
@@ -39,6 +76,7 @@ struct EasyEQApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
+        .commands { EasyEQCommands(model: delegate.model, localizer: delegate.model.localizer) }
 
         Settings {
             SettingsView(model: delegate.model)

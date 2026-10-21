@@ -29,11 +29,36 @@ struct SettingsView: View {
                     Text(localizer.t("appearance.dark")).tag(AppearanceChoice.dark)
                 }
             }
+            Rectangle().fill(theme.hairline).frame(height: 1).padding(.horizontal, 16)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(localizer.t("settings.launchAtLogin"))
+                        .font(.system(size: 13))
+                        .foregroundStyle(theme.textPrimary)
+                    Spacer(minLength: 12)
+                    Toggle(localizer.t("settings.launchAtLogin"), isOn: Binding(
+                        get: { model.launchAtLogin },
+                        set: { model.setLaunchAtLogin($0) })
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .tint(theme.accentStart)
+                }
+                if let message = model.loginItemError {
+                    Text(message)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
         .card()
         .padding(24)
         .frame(width: 340)
         .background(theme.backgroundGradient.ignoresSafeArea())
+        .onAppear { model.refreshLaunchAtLogin() }
     }
 
     private func row<Control: View>(_ title: String, @ViewBuilder control: () -> Control) -> some View {

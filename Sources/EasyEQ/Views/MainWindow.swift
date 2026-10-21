@@ -18,34 +18,26 @@ struct MainWindow: View {
     @EnvironmentObject private var localizer: Localizer
     @Environment(\.openWindow) private var openWindow
     @Environment(\.theme) private var theme
-    @State private var sheet: NameSheetRequest?
 
     var body: some View {
         HStack(spacing: 0) {
-            PresetSidebar(model: model, present: { sheet = $0 })
+            PresetSidebar(model: model, present: { model.pendingSheet = $0 })
             VStack(spacing: 0) {
                 PermissionBanner(engine: model.engine)
-                EditorPane(model: model, present: { sheet = $0 })
+                EditorPane(model: model, present: { model.pendingSheet = $0 })
             }
             // Clears the traffic lights, which float over the hidden title bar.
             .padding(.top, 28)
         }
         .background(theme.backgroundGradient.ignoresSafeArea())
         .frame(minWidth: 720, minHeight: 560)
-        .sheet(item: $sheet) { request in
+        .sheet(item: $model.pendingSheet) { request in
             NameSheet(model: model, request: request)
         }
         .alert(localizer.t("app.name"), isPresented: errorBinding) {
             Button(localizer.t("sheet.ok")) {}
         } message: {
             Text(model.lastError ?? "")
-        }
-        .onChange(of: model.showBuiltInReadOnlyHint) { _, shown in
-            guard shown else { return }
-            model.showBuiltInReadOnlyHint = false
-            sheet = NameSheetRequest(mode: .saveAs,
-                                     initial: model.displayName(for: model.session.selection),
-                                     message: localizer.t("editor.builtInReadOnly"))
         }
         .onAppear { delegate.reopenMainWindow = { openWindow(id: "main") } }
     }

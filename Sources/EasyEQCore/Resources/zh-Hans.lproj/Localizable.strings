@@ -77,3 +77,9 @@
 "a11y.expanded" = "已展开";
 "a11y.collapsed" = "已折叠";
 "a11y.presetCount" = "%d 个预设";
+"menu.newPreset" = "新建预设";
+"menu.save" = "保存";
+"menu.saveAs" = "另存为…";
+"menu.toggleEffect" = "打开/关闭效果";
+"settings.launchAtLogin" = "开机自动启动";
+"error.loginItemFailed" = "开机启动设置失败。";

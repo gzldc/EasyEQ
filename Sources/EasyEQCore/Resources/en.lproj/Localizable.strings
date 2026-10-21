@@ -77,3 +77,9 @@
 "a11y.expanded" = "Expanded";
 "a11y.collapsed" = "Collapsed";
 "a11y.presetCount" = "%d presets";
+"menu.newPreset" = "New Preset";
+"menu.save" = "Save";
+"menu.saveAs" = "Save As…";
+"menu.toggleEffect" = "Turn Effect On/Off";
+"settings.launchAtLogin" = "Launch at Login";
+"error.loginItemFailed" = "Couldn't change the login item.";

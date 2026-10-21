@@ -23,6 +23,8 @@ struct LocalizerTests {
         "confirm.deletePreset.title", "confirm.deletePreset.message", "confirm.delete",
         "error.importFailed", "error.exportFailed", "error.groupSaveFailed",
         "a11y.expanded", "a11y.collapsed", "a11y.presetCount",
+        "menu.newPreset", "menu.save", "menu.saveAs", "menu.toggleEffect",
+        "settings.launchAtLogin", "error.loginItemFailed",
     ]
 
     @Test func everyKeyExistsInBothLanguages() {
