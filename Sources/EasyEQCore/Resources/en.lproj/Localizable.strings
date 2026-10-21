@@ -15,6 +15,8 @@
 "editor.effect" = "Effect";
 "editor.bands" = "Bands";
 "editor.revert" = "Revert";
+"editor.smooth" = "Smooth";
+"editor.zero" = "Reset All";
 "editor.save" = "Save";
 "editor.saveAs" = "Save As…";
 "editor.builtInReadOnly" = "Built-in presets can't be overwritten. Save as a new preset.";

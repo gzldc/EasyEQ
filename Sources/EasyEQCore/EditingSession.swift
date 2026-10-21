@@ -45,6 +45,12 @@ public struct EditingSession: Equatable {
         current.gains[index] = 0
     }
 
+    /// Replaces the live curve with `settings` (smooth / reset all). Ignored if the layout differs.
+    public mutating func replaceCurrent(with settings: EQSettings) {
+        guard settings.layout == current.layout else { return }
+        current = settings
+    }
+
     public mutating func switchLayout(to layout: BandLayout) {
         guard layout != current.layout else { return }
         current = current.converted(to: layout)

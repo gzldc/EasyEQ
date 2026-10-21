@@ -95,3 +95,21 @@ private func painter31() -> BandPainter {
     let s = EQSettings(layout: .fifteen, gains: (0..<15).map { Double($0) - 7 })
     #expect(s.zeroed() == EQSettings.flat(.fifteen))
 }
+
+@Test func nonFiniteInputsAreSafe() {
+    let p = painter31()
+    #expect(p.band(atX: .nan) == 0)
+    #expect(p.band(atX: .infinity) == 30)
+    #expect(p.band(atX: -.infinity) == 0)
+    #expect(p.gain(atY: .nan) == 0)
+    #expect(p.gain(atY: -.infinity) == 12)
+    let s = p.stroke(from: (x: .nan, y: .nan), to: (x: 100, y: 120))
+    #expect(!s.isEmpty && s.allSatisfy { (0...30).contains($0.index) && $0.gain.isFinite })
+}
+
+@Test func zeroBandsYieldNothing() {
+    let p = BandPainter(bandCount: 0, width: 100, height: 100)
+    #expect(p.band(atX: 50) == 0)
+    #expect(p.stroke(from: (x: 0, y: 0), to: (x: 100, y: 100)).isEmpty)
+    #expect(p.stroke(from: (x: 10, y: 0), to: (x: 12, y: 100)).isEmpty)
+}

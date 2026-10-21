@@ -16,3 +16,11 @@ import Testing
     #expect(keys == ["zone.subbass","zone.bass","zone.warmth","zone.mud","zone.body",
                      "zone.voice","zone.presence","zone.clarity","zone.sibilance","zone.air"])
 }
+
+@Test func thirtyOneBandShowsEveryOtherLabel() {
+    let shown = BandLayout.thirtyOne.frequencies.enumerated()
+        .filter { BandLayout.thirtyOne.showsFrequencyLabel(at: $0.offset) }.map(\.element)
+    #expect(shown == [25, 40, 63, 100, 160, 250, 400, 630, 1000, 1600, 2500, 4000, 6300, 10000, 16000])
+    #expect((0..<10).allSatisfy { BandLayout.ten.showsFrequencyLabel(at: $0) })
+    #expect((0..<15).allSatisfy { BandLayout.fifteen.showsFrequencyLabel(at: $0) })
+}

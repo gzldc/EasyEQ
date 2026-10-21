@@ -17,14 +17,14 @@ public struct BandPainter: Sendable {
 
     /// Column under `x`, clamped to `0..<bandCount`.
     public func band(atX x: Double) -> Int {
-        guard bandCount > 0, width > 0 else { return 0 }
+        guard bandCount > 0, width > 0, !x.isNaN else { return 0 }
         let raw = (x / width * Double(bandCount)).rounded(.down)
         return min(max(Int(max(min(raw, Double(bandCount)), -1)), 0), bandCount - 1)
     }
 
     /// Gain at `y`, rounded to 0.1 dB and clamped to ±range.
     public func gain(atY y: Double) -> Double {
-        guard height > 0 else { return 0 }
+        guard height > 0, !y.isNaN else { return 0 }
         let raw = (1 - 2 * y / height) * range
         let value = min(max((raw * 10).rounded() / 10, -range), range)
         return value == 0 ? 0 : value   // normalise -0.0
@@ -34,6 +34,7 @@ public struct BandPainter: Sendable {
     /// never skips bands. Gains are interpolated along the segment at each column's centre; the end band
     /// uses `to`'s y. A move that stays in one column returns just that band at `to`'s y.
     public func stroke(from: (x: Double, y: Double), to: (x: Double, y: Double)) -> [(index: Int, gain: Double)] {
+        guard bandCount > 0 else { return [] }
         let start = band(atX: from.x)
         let end = band(atX: to.x)
         if start == end { return [(end, gain(atY: to.y))] }

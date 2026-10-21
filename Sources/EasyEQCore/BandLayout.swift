@@ -29,6 +29,12 @@ public enum BandLayout: Int, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// Whether the band at `index` gets a frequency label under its slider. The 31-band layout labels every
+    /// other band (the odd positions: 25, 40, 63 … 1K … 16K), the others are reachable through the hover readout.
+    public func showsFrequencyLabel(at index: Int) -> Bool {
+        self != .thirtyOne || index % 2 == 1
+    }
+
     /// Localization key naming the frequency zone a band falls into.
     public static func zoneKey(forFrequency hz: Double) -> String {
         switch hz {

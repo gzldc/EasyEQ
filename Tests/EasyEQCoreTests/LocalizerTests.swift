@@ -5,7 +5,7 @@ struct LocalizerTests {
     static let requiredKeys: [String] = [
         "app.name", "sidebar.builtIn", "sidebar.mine", "sidebar.new",
         "preset.voice", "preset.voicePlus", "preset.flat",
-        "editor.effect", "editor.bands", "editor.revert", "editor.save", "editor.saveAs",
+        "editor.effect", "editor.bands", "editor.revert", "editor.smooth", "editor.zero", "editor.save", "editor.saveAs",
         "editor.builtInReadOnly", "menu.rename", "menu.delete",
         "sheet.name", "sheet.cancel", "sheet.ok",
         "zone.subbass", "zone.bass", "zone.warmth", "zone.mud", "zone.body",
@@ -51,9 +51,13 @@ struct LocalizerTests {
         let l = Localizer(language: .en)
         #expect(l.t("device.output") == "Output: %@")
         #expect(l.t("zone.air") == "Air")
+        #expect(l.t("editor.smooth") == "Smooth")
+        #expect(l.t("editor.zero") == "Reset All")
         l.setLanguage(.zhHans)
         #expect(l.t("device.output") == "输出设备：%@")
         #expect(l.t("zone.air") == "空气感")
+        #expect(l.t("editor.smooth") == "平滑")
+        #expect(l.t("editor.zero") == "归零")
         #expect(l.t("permission.title") == "简易均衡器需要“系统音频录制”权限才能处理声音")
     }
 }

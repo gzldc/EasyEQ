@@ -67,3 +67,16 @@ import Testing
     #expect(EditingSession.selectionAfterDeleting(UUID(), current: .user(other)) == .user(other))
     #expect(EditingSession.selectionAfterDeleting(UUID(), current: .builtIn(.flat)) == .builtIn(.flat))
 }
+
+@Test func replaceCurrentMakesDirtyAndRevertRestores() {
+    var session = EditingSession(selection: .builtIn(.flat), saved: .flat(.ten))
+    var spiky = EQSettings.flat(.ten)
+    spiky.gains[4] = 12
+    session.replaceCurrent(with: spiky.smoothed())
+    #expect(session.current.gains[4] == 6)
+    #expect(session.isDirty)
+    session.revert()
+    #expect(!session.isDirty)
+    session.replaceCurrent(with: .flat(.fifteen))            // wrong layout: ignored
+    #expect(session.current.layout == .ten)
+}
