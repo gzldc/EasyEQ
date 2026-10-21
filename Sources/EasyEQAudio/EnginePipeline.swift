@@ -135,8 +135,9 @@ final class EnginePipeline: @unchecked Sendable {
     // MARK: - Queue-confined work
 
     private func stopNow() {
-        removeSystemListener()
+        // The tap goes first: it is what mutes system audio, so no Core Audio call that can stall precedes it.
         teardown()
+        removeSystemListener()
     }
 
     private func rebuild(epoch: Int) {
@@ -275,8 +276,6 @@ final class EnginePipeline: @unchecked Sendable {
         let request = StartRequest(
             epoch: epoch, attempt: attempt, aggregateID: aggregateID, procID: procID,
             tapBufferCount: tapBufferCount, deviceName: deviceName, done: done)
-        // Build phase over: the engine's watchdog stops here; the start may now legitimately wait on the prompt.
-        publish?(epoch, .awaitingStart)
         startQueue.async { self.runStart(request) }
     }
 
@@ -305,6 +304,9 @@ final class EnginePipeline: @unchecked Sendable {
                 audioLog.error("Could not restrict IOProc input streams to the tap; continuing: \(String(describing: error), privacy: .public)")
             }
         }
+        // Build phase over (stream usage included): the engine's watchdog stops here; the start may now
+        // legitimately wait on the permission prompt.
+        publish?(request.epoch, .awaitingStart)
         request.attempt.markAttempted()
         let status = AudioDeviceStart(request.aggregateID, request.procID)
         request.done.leave()
@@ -348,13 +350,14 @@ final class EnginePipeline: @unchecked Sendable {
         let s = session
         session = Session()
 
+        // Tap first (inside destroy); listeners are removed afterwards so nothing that can stall precedes it.
+        Self.destroy(Teardown(
+            tapID: s.tapID, aggregateID: s.aggregateID, procID: s.procID,
+            startAttempted: s.startAttempted, startPending: s.startPending, startDone: s.startDone, context: s.context))
         if let listener = s.rateListener {
             var rateAddress = address(kAudioDevicePropertyNominalSampleRate)
             AudioObjectRemovePropertyListenerBlock(s.deviceID, &rateAddress, queue, listener)
         }
-        Self.destroy(Teardown(
-            tapID: s.tapID, aggregateID: s.aggregateID, procID: s.procID,
-            startAttempted: s.startAttempted, startPending: s.startPending, startDone: s.startDone, context: s.context))
     }
 
     private static func destroy(_ t: Teardown) {
