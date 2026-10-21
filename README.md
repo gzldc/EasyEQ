@@ -76,7 +76,7 @@
 
 ### 安装
 
-1. 到 [Releases](https://github.com/gzldc/EasyEQ/releases/latest) 下载最新的 `EasyEQ-<版本>.dmg`，打开后把 `EasyEQ.app` 拖进“应用程序”。
+1. 到 [Releases](https://github.com/gzldc/EasyEQ/releases/latest) 下载最新的 `EasyEQ-<版本>.dmg`，打开后会弹出安装窗口，把左边的 `EasyEQ.app` 拖到右边的“应用程序”文件夹即可。
 2. 目前还没有经过 Apple 公证。第一次打开如果提示“无法验证开发者”：打开“系统设置 → 隐私与安全性”，在页面下方点“仍要打开”（macOS 15 起右键“打开”已不能绕过）。
 3. 第一次启动会请求“系统音频录制”权限，点“允许”。也可以在“系统设置 → 隐私与安全性 → 屏幕与系统音频录制 → 仅系统音频录制”里打开 EasyEQ。
 4. 升级到新版本后，系统可能会再请求一次权限，这是正常的。
@@ -104,6 +104,10 @@ swift test                 # 运行测试
 scripts/bundle.sh          # 生成 dist/EasyEQ.app（通用二进制）
 scripts/package.sh 0.1.0   # 生成 dist/EasyEQ-0.1.0.zip 和 .dmg
 ```
+
+- 制作 `.dmg` 需要 [dmgbuild](https://github.com/dmgbuild/dmgbuild)：`pip install dmgbuild`（或 `python3 -m venv .build/dmgvenv && .build/dmgvenv/bin/pip install dmgbuild`，再把 `.build/dmgvenv/bin` 加进 `PATH`）。
+- 重新生成 App 图标（`Resources/AppBundle/AppIcon.icns`）：`swift scripts/make-icon.swift /tmp/AppIcon.iconset && iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppBundle/AppIcon.icns`。脚本内置六个备选设计，用 `--design A|B|C|D|E|F` 切换（默认 A，预览见 `docs/images/icon-options/`），例如 `swift scripts/make-icon.swift /tmp/AppIcon.iconset --design C`。
+- 安装窗口背景：`swift scripts/make-dmg-background.swift /tmp/dmgbg && tiffutil -cathidpicheck /tmp/dmgbg/background.png /tmp/dmgbg/background@2x.png -out Resources/DMG/background.tiff`。
 
 - 默认使用临时签名（ad-hoc）。设置环境变量 `SIGN_IDENTITY` 可改用你自己的证书。
 - 本地开发小技巧：如果钥匙串里有名为 `EasyEQ Local Signing` 的自签名代码签名证书，脚本会自动使用它，这样重新编译后不用反复授权系统音频权限。
@@ -182,7 +186,7 @@ Nothing I tried felt right: one had a daily paid countdown, one needed a driver 
 
 ### Install
 
-1. Download the latest `EasyEQ-<version>.dmg` from [Releases](https://github.com/gzldc/EasyEQ/releases/latest), open it and drag `EasyEQ.app` into Applications.
+1. Download the latest `EasyEQ-<version>.dmg` from [Releases](https://github.com/gzldc/EasyEQ/releases/latest), open it, and in the window that appears drag `EasyEQ.app` onto the Applications folder.
 2. The app isn't notarized yet. If macOS says it can't verify the developer on first launch, open System Settings → Privacy & Security and click "Open Anyway" near the bottom (since macOS 15, right-click → Open no longer bypasses this).
 3. On first launch EasyEQ asks for the System Audio Recording permission — click Allow. You can also enable it under System Settings → Privacy & Security → Screen & System Audio Recording → System Audio Recording Only.
 4. After updating to a new version, macOS may ask for the permission again. That's expected.
@@ -210,6 +214,10 @@ swift test                 # run the tests
 scripts/bundle.sh          # build dist/EasyEQ.app (universal binary)
 scripts/package.sh 0.1.0   # build dist/EasyEQ-0.1.0.zip and .dmg
 ```
+
+- Building the `.dmg` needs [dmgbuild](https://github.com/dmgbuild/dmgbuild): `pip install dmgbuild` (or `python3 -m venv .build/dmgvenv && .build/dmgvenv/bin/pip install dmgbuild`, then put `.build/dmgvenv/bin` on your `PATH`).
+- Regenerate the app icon (`Resources/AppBundle/AppIcon.icns`): `swift scripts/make-icon.swift /tmp/AppIcon.iconset && iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppBundle/AppIcon.icns`. The script ships six alternative designs; pick one with `--design A|B|C|D|E|F` (default A, previews in `docs/images/icon-options/`), e.g. `swift scripts/make-icon.swift /tmp/AppIcon.iconset --design C`.
+- Installer window background: `swift scripts/make-dmg-background.swift /tmp/dmgbg && tiffutil -cathidpicheck /tmp/dmgbg/background.png /tmp/dmgbg/background@2x.png -out Resources/DMG/background.tiff`.
 
 - Ad-hoc signed by default. Set `SIGN_IDENTITY` to sign with your own certificate.
 - Local development tip: if your keychain has a self-signed code-signing identity named `EasyEQ Local Signing`, the scripts use it automatically, so rebuilds don't keep asking for the system-audio permission.

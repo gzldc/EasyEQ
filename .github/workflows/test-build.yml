@@ -1,0 +1,36 @@
+name: Test build
+
+# Manual trigger: builds a test DMG + zip from the selected branch and attaches them to the run
+# as downloadable artifacts. Nothing is published to Releases.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test
+        run: swift test
+
+      # setup-python gives a pip that isn't the externally-managed Homebrew one.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dmgbuild
+        run: pip install dmgbuild
+
+      - name: Package
+        run: scripts/package.sh 0.0.0-test.${{ github.run_number }}
+
+      - name: Upload test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: EasyEQ-test-${{ github.run_number }}
+          path: |
+            dist/EasyEQ-*.dmg
+            dist/EasyEQ-*.zip
+          retention-days: 14
+          if-no-files-found: error

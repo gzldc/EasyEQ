@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Usage: scripts/package.sh <version>
-# Builds dist/EasyEQ.app via bundle.sh, then produces dist/EasyEQ-<version>.zip and .dmg.
+# Builds dist/EasyEQ.app via bundle.sh, then produces dist/EasyEQ-<version>.zip and .dmg
+# (the DMG needs dmgbuild: pip install dmgbuild).
 set -euo pipefail
 
 if [ $# -ne 1 ] || [ -z "$1" ]; then
@@ -10,6 +11,18 @@ fi
 VERSION="$1"
 
 cd "$(dirname "$0")/.."
+
+# dmgbuild is checked first so a missing install fails before the long build.
+if command -v dmgbuild >/dev/null 2>&1; then
+  DMGBUILD=(dmgbuild)
+elif python3 -c "import dmgbuild" >/dev/null 2>&1; then
+  DMGBUILD=(python3 -m dmgbuild)
+else
+  echo "error: dmgbuild not found. Install it with:" >&2
+  echo "  python3 -m venv .build/dmgvenv && .build/dmgvenv/bin/pip install dmgbuild && export PATH=\"\$PWD/.build/dmgvenv/bin:\$PATH\"" >&2
+  echo "  (or: pip install dmgbuild)" >&2
+  exit 69
+fi
 
 scripts/bundle.sh
 
@@ -27,12 +40,9 @@ codesign --verify --deep --strict "$APP"
 rm -f "$ZIP" "$DMG"
 ditto -c -k --keepParent "$APP" "$ZIP"
 
-# DMG contents: the app plus an /Applications shortcut for drag-to-install.
-STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"' EXIT
-cp -R "$APP" "$STAGE/"
-ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname EasyEQ -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+# Styled drag-to-install DMG (window layout, background and volume icon: scripts/dmg-settings.py).
+# dmgbuild writes the .DS_Store itself, so this works headless (CI) without Finder.
+"${DMGBUILD[@]}" -s scripts/dmg-settings.py -D app="$APP" EasyEQ "$DMG"
 
 echo "Packaged:"
 ls -lh "$ZIP" "$DMG"
