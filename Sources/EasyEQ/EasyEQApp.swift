@@ -35,12 +35,15 @@ struct EasyEQApp: App {
         Window("EasyEQ", id: "main") {
             MainWindow(model: delegate.model, delegate: delegate)
                 .environmentObject(delegate.model.localizer)
+                .themed()
         }
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
 
         Settings {
             SettingsView(model: delegate.model)
                 .environmentObject(delegate.model.localizer)
+                .themed()
         }
     }
 }

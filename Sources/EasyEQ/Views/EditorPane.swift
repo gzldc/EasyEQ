@@ -1,5 +1,3 @@
-import AppKit
-import EasyEQAudio
 import EasyEQCore
 import SwiftUI
 
@@ -11,42 +9,22 @@ struct EditorPane: View {
     var body: some View {
         let session = model.session
         let layout = session.current.layout
-        VStack(spacing: 12) {
-            header(session: session, layout: layout)
+        let compact = layout == .thirtyOne
+        VStack(spacing: 14) {
+            EditorHeader(model: model)
             CurveView(settings: session.current)
                 .frame(height: 120)
+                .padding(10)
+                .card()
             sliders(session: session, layout: layout)
-            footer(session: session)
+                .padding(.horizontal, compact ? 8 : 14)
+                .padding(.vertical, 12)
+                .frame(maxHeight: .infinity)
+                .card()
+            EditorFooter(model: model, present: present)
         }
-        .padding(layout == .thirtyOne ? 12 : 20)
-    }
-
-    private func header(session: EditingSession, layout: BandLayout) -> some View {
-        HStack(spacing: 8) {
-            Text(model.displayName(for: session.selection))
-                .font(.title2.weight(.semibold))
-                .lineLimit(1)
-            if session.isDirty {
-                Circle().fill(Color.orange).frame(width: 8, height: 8)
-            }
-            Spacer(minLength: 8)
-            Text(localizer.t("editor.bands"))
-                .foregroundStyle(.secondary)
-            Picker(localizer.t("editor.bands"), selection: Binding(
-                get: { model.session.current.layout },
-                set: { model.switchLayout($0) })
-            ) {
-                ForEach(BandLayout.allCases, id: \.self) { Text(String($0.bandCount)).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            Toggle(localizer.t("editor.effect"), isOn: Binding(
-                get: { model.settings.effectEnabled },
-                set: { model.setEffectEnabled($0) })
-            )
-            .toggleStyle(.switch)
-        }
+        .padding(.horizontal, compact ? 16 : 22)
+        .padding(.bottom, 16)
     }
 
     private func sliders(session: EditingSession, layout: BandLayout) -> some View {
@@ -66,61 +44,5 @@ struct EditorPane: View {
                 )
             }
         }
-        .frame(maxHeight: .infinity)
-    }
-
-    private func footer(session: EditingSession) -> some View {
-        HStack {
-            DeviceFooter(engine: model.engine)
-            Spacer()
-            Button(localizer.t("editor.saveAs")) {
-                present(NameSheetRequest(mode: .saveAs, initial: model.displayName(for: session.selection)))
-            }
-            Button(localizer.t("editor.revert")) { model.revert() }
-                .disabled(!session.isDirty)
-            Button(localizer.t("editor.save")) { model.save() }
-        }
-    }
-}
-
-/// Output device name; observes the engine so it follows device changes.
-private struct DeviceFooter: View {
-    @ObservedObject var engine: SystemAudioEngine
-    @EnvironmentObject private var localizer: Localizer
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text(text)
-                .font(.callout)
-                .foregroundStyle(isFailed ? Color.orange : Color.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            if isFailed {
-                Button(localizer.t("engine.retry")) { engine.retry() }
-                    .font(.callout)
-            }
-            // Low-key hint: silence while other apps hold output streams is also the normal idle state.
-            if engine.permissionSuspected && engine.state != .permissionDenied {
-                Button(localizer.t("permission.check")) {
-                    NSWorkspace.shared.open(PermissionBanner.settingsURL)
-                }
-                .buttonStyle(.link)
-                .font(.callout)
-            }
-        }
-    }
-
-    private var text: String {
-        switch engine.state {
-        case .running(let deviceName): return String(format: localizer.t("device.output"), deviceName)
-        case .starting: return localizer.t("engine.starting")
-        case .failed: return localizer.t("engine.failed")   // the technical reason is in the log, not the UI
-        case .stopped, .permissionDenied: return ""
-        }
-    }
-
-    private var isFailed: Bool {
-        if case .failed = engine.state { return true }
-        return false
     }
 }

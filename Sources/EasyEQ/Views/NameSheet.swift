@@ -12,6 +12,7 @@ struct NameSheet: View {
     let request: NameSheetRequest
     @EnvironmentObject private var localizer: Localizer
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.theme) private var theme
     @State private var name: String
     @FocusState private var focused: Bool
 
@@ -25,25 +26,41 @@ struct NameSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             if let message = request.message {
                 Text(message)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text(localizer.t("sheet.name"))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(theme.textPrimary)
             TextField("", text: $name)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(theme.textPrimary)
                 .focused($focused)
                 .onSubmit(commit)
-            HStack {
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
+                        .fill(theme.buttonFill)
+                        .overlay(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
+                            .strokeBorder(focused ? theme.accentStart : theme.hairline, lineWidth: 1))
+                )
+            HStack(spacing: 8) {
                 Spacer()
                 Button(localizer.t("sheet.cancel")) { dismiss() }
                     .keyboardShortcut(.cancelAction)
+                    .buttonStyle(SoftButtonStyle())
                 Button(localizer.t("sheet.ok"), action: commit)
                     .keyboardShortcut(.defaultAction)
+                    .buttonStyle(AccentButtonStyle())
                     .disabled(isBlank)
             }
         }
         .padding(20)
         .frame(width: 340)
+        .background(theme.backgroundGradient)
         .onAppear { focused = true }
     }
 

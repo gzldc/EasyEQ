@@ -17,18 +17,20 @@ struct MainWindow: View {
     let delegate: AppDelegate
     @EnvironmentObject private var localizer: Localizer
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.theme) private var theme
     @State private var sheet: NameSheetRequest?
 
     var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             PresetSidebar(model: model, present: { sheet = $0 })
-                .navigationSplitViewColumnWidth(min: 150, ideal: 170, max: 220)
-        } detail: {
             VStack(spacing: 0) {
                 PermissionBanner(engine: model.engine)
                 EditorPane(model: model, present: { sheet = $0 })
             }
+            // Clears the traffic lights, which float over the hidden title bar.
+            .padding(.top, 28)
         }
+        .background(theme.backgroundGradient.ignoresSafeArea())
         .frame(minWidth: 720, minHeight: 560)
         .sheet(item: $sheet) { request in
             NameSheet(model: model, request: request)

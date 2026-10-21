@@ -14,28 +14,34 @@ struct BandSlider: View {
     let onReset: () -> Void
 
     private static let range = 12.0
-    private static let thumbSize: CGFloat = 14
+    private static let railWidth: CGFloat = 6
+
+    @Environment(\.theme) private var theme
+
+    /// 18 pt normally; 31 bands leave only ~16 pt per column, so the thumb shrinks to avoid overlapping.
+    private var thumbSize: CGFloat { compact ? 14 : 18 }
 
     var body: some View {
         VStack(spacing: 4) {
             Text(Self.valueText(value))
-                .font(.system(size: compact ? 8 : 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(value == 0 ? .secondary : .primary)
+                .font(.system(size: compact ? 8 : 11, weight: .semibold).monospacedDigit())
+                .foregroundStyle(theme.accentStart)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
 
             track
-                .frame(minHeight: 200)
+                .frame(minHeight: 150)
 
             if let label {
                 Text(label)
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
             }
             Text(Self.frequencyText(frequency))
                 .font(.system(size: compact ? 8 : 11))
+                .foregroundStyle(theme.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
         }
@@ -55,31 +61,31 @@ struct BandSlider: View {
 
     private var track: some View {
         GeometryReader { geo in
-            let r = Self.thumbSize / 2
-            let usable = max(geo.size.height - Self.thumbSize, 1)
+            let r = thumbSize / 2
+            let usable = max(geo.size.height - thumbSize, 1)
             let thumbY = r + usable * (1 - (value + Self.range) / (2 * Self.range))
             let midY = r + usable / 2
             ZStack(alignment: .topLeading) {
                 // Track rail
                 Capsule()
-                    .fill(Color.secondary.opacity(0.25))
-                    .frame(width: 4, height: geo.size.height - 2)
+                    .fill(theme.track)
+                    .frame(width: Self.railWidth, height: geo.size.height - 2)
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
                 // 0 dB center line
                 Rectangle()
-                    .fill(Color.secondary.opacity(0.7))
+                    .fill(theme.textSecondary.opacity(0.6))
                     .frame(width: min(geo.size.width, 14), height: 1)
                     .position(x: geo.size.width / 2, y: midY)
                 // Filled portion between 0 dB and the thumb
                 Capsule()
-                    .fill(Color.accentColor.opacity(0.6))
-                    .frame(width: 4, height: max(abs(thumbY - midY), 0.5))
+                    .fill(theme.accentGradientVertical)
+                    .frame(width: Self.railWidth, height: max(abs(thumbY - midY), 0.5))
                     .position(x: geo.size.width / 2, y: (thumbY + midY) / 2)
                 Circle()
-                    .fill(Color.accentColor)
-                    .overlay(Circle().stroke(Color.white.opacity(0.8), lineWidth: 1))
-                    .frame(width: Self.thumbSize, height: Self.thumbSize)
-                    .shadow(radius: 1, y: 1)
+                    .fill(theme.thumbFill)
+                    .overlay(Circle().strokeBorder(theme.accentStart, lineWidth: 2))
+                    .frame(width: thumbSize, height: thumbSize)
+                    .shadow(color: theme.thumbShadow, radius: 2, y: 1)
                     .position(x: geo.size.width / 2, y: thumbY)
             }
             .contentShape(Rectangle())
