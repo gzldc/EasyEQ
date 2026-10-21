@@ -146,7 +146,7 @@ final class AppModel: ObservableObject {
         do {
             try presetStore.delete(id: id)
         } catch {
-            report("Could not delete preset: \(error.localizedDescription)")
+            report(key: "error.deleteFailed", underlying: error)
             return
         }
         reloadUserPresets()
@@ -192,7 +192,7 @@ final class AppModel: ObservableObject {
             try presetStore.save(preset)
             return true
         } catch {
-            report("Could not save preset: \(error.localizedDescription)")
+            report(key: "error.saveFailed", underlying: error)
             return false
         }
     }
@@ -201,9 +201,10 @@ final class AppModel: ObservableObject {
         userPresets = presetStore.loadAll()
     }
 
-    private func report(_ message: String) {
-        presetLog.error("\(message, privacy: .public)")
-        lastError = message
+    /// Logs the underlying error; the UI only ever shows the localized text for `key`.
+    private func report(key: String, underlying error: Error) {
+        presetLog.error("\(key, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        lastError = localizer.t(key)
     }
 
     private func selectionOrLayoutChanged() {
