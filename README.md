@@ -31,8 +31,10 @@
 - **完全免费，没有任何限制**：没有试用期、没有每天 30 分钟倒计时、没有“升级专业版”。开源（MIT）。
 - **不装驱动、不改设置**：使用 macOS 自带的系统音频捕获能力（Core Audio Process Tap）。装好、授权一次就能用，**不需要去“声音设置”里切换输出设备**，也不会往系统里塞虚拟声卡。
 - **看得懂**：每个滑块都写着大白话——重低音、浑厚、发闷、咬字、清晰、齿音……不懂音频也知道往哪拖。
-- **为“听清人声”而生**：内置“人声”“人声·强”预设，专门压掉闷声、提清咬字，看直播、网课、播客一键变清楚。
-- **直接拖、实时听**：按住滑块拖动，声音和曲线同时变化；双击滑块归零。不用先双击再进二级面板。
+- **为“听清人声”而生**：10 个内置预设，其中“人声”“人声·强”专门压掉闷声、提清咬字，看直播、网课、播客一键变清楚；另有播客、电影、音乐、夜间、低音减弱、低音增强、高音增强和原声。
+- **直接拖、实时听**：按住滑块拖动，声音和曲线同时变化；双击滑块归零。15 / 31 段时还能像画画一样按住鼠标左右划过，一笔画出整条曲线。不用先双击再进二级面板。
+- **预设可分组、可分享**：自己的预设能建分组整理，也能导入 / 导出成文件发给朋友。
+- **安装简单**：下载 DMG，把 App 拖进“应用程序”即可；可选开机自动启动。
 - **存的就是听到的**：保存的预设和你当下听到的一模一样，重启后依然如此。
 - **好看、轻量**：清淡的玻璃风格界面，浅色/深色可选；只在你操作的一瞬间有过渡动画，平时完全静止，几乎不占资源。
 - **中英双语**：默认跟随系统语言，也可在设置里手动切换。
@@ -59,8 +61,13 @@
 
 - **系统级均衡**：对浏览器、视频网站、播放器等所有正在播放的声音生效。
 - **三档频段**：10 段（默认）、15 段、31 段，都是行业标准的图示均衡器频点；切换时按当前曲线自动换算，声音基本不变。
-- **内置预设**：人声（看直播、讲课）、人声·强（说话特别闷时）、原声（不做处理）。
+- **10 个内置预设**：人声（看直播、讲课）、人声·强（说话特别闷时）、播客、电影、音乐、夜间、低音减弱、低音增强、高音增强、原声（不做处理）。
 - **自己的预设**：新建、保存、另存为、改名、删除；每个预设记住自己的段数。
+- **预设分组**：新建分组、把预设移到分组里，分组可折叠；名字和顺序会保存下来。
+- **导入 / 导出**：预设可导出为文件，也可以导入别人分享的预设。
+- **画笔式编辑（15 / 31 段）**：按住鼠标左右划过即可连续“画”出各频段的增益，划得再快也不会漏段；一次竖向拖动只改起始的那一列，横向移动超过半列才会继续画到相邻频段。鼠标悬停会高亮该频段并显示读数，滚轮每格微调 0.5 dB；“平滑”一键柔化曲线，“归零”(Reset All) 一键全部归零，“还原”撤销。
+- **快捷键**：⌘N 新建预设，⌘S 保存，⇧⌘S 另存为，⌘E 打开 / 关闭效果。
+- **开机自动启动**：在设置里打开（需要先把 EasyEQ 移到“应用程序”文件夹）。
 - **实时曲线**：滑块上方的曲线实时显示整体效果。
 - **防爆音**：自动降低整体电平 + 限幅器，所有频段拉满也不会破音；拖动时平滑过渡，没有“咔哒”声。
 - **跟随输出设备**：插拔耳机、切换显示器扬声器时自动跟过去。
@@ -112,6 +119,11 @@ scripts/package.sh 0.1.0   # 生成 dist/EasyEQ-0.1.0.zip 和 .dmg
 - 默认使用临时签名（ad-hoc）。设置环境变量 `SIGN_IDENTITY` 可改用你自己的证书。
 - 本地开发小技巧：如果钥匙串里有名为 `EasyEQ Local Signing` 的自签名代码签名证书，脚本会自动使用它，这样重新编译后不用反复授权系统音频权限。
 
+### 测试版
+
+- 往仓库推送非 `main` 的分支（或在 Actions 里手动运行 “Test build” 工作流），会自动编译并把测试版 DMG / zip 作为该次运行的附件提供下载（保留 14 天），不会发布到 Releases。测试版版本号形如 `0.0.0-test.<编号>`。
+- 带 `-` 的标签（例如 `v0.2.0-beta.1`）会作为预发布（pre-release）发布；`v0.2.0` 这样的标签才是正式版。
+
 ### 技术原理
 
 - 用 Core Audio Process Tap 捕获全部系统声音并让原声静音，处理后再输出到当前默认设备，不需要任何驱动。
@@ -143,8 +155,10 @@ Nothing I tried felt right: one had a daily paid countdown, one needed a driver 
 - **Completely free, no limits** — no trial, no 30-minutes-a-day countdown, no "upgrade to Pro". Open source (MIT).
 - **No driver, no settings to change** — uses macOS's built-in system audio capture (Core Audio Process Tap). Grant permission once and it works; **no switching the output device** in Sound settings, no virtual audio device added to your system.
 - **Readable** — every slider has a plain-language name: Sub-bass, Warmth, Muddiness, Presence, Clarity, Sibilance… you know where to drag without audio knowledge.
-- **Made for clear voices** — built-in Voice and Voice+ presets cut the boom and bring speech forward for streams, classes and podcasts.
-- **Drag and hear it live** — press and drag a slider; sound and curve change together. Double-click to reset. No second panel to open.
+- **Made for clear voices** — 10 built-in presets; Voice and Voice+ cut the boom and bring speech forward for streams, classes and podcasts, alongside Podcast, Movie, Music, Night, Less Bass, Bass Boost, Treble Boost and Flat.
+- **Drag and hear it live** — press and drag a slider; sound and curve change together. Double-click to reset. With 15 or 31 bands you can also paint the curve in one stroke by dragging across the bands. No second panel to open.
+- **Groups and sharing** — organize your own presets into groups, and import / export presets as files to share.
+- **Easy install** — download the DMG and drag the app into Applications; optionally launch at login.
 - **What you save is what you hear** — saved presets sound exactly like what you heard, even after a restart.
 - **Good-looking and light** — a soft glass design with light and dark appearances. Animations only play at the moment you act; otherwise the UI is completely still and costs almost nothing.
 - **Chinese & English** — follows the system language, switchable in Settings.
@@ -171,8 +185,13 @@ Nothing I tried felt right: one had a daily paid countdown, one needed a driver 
 
 - **System-wide EQ** — applies to everything that plays: browsers, video sites, players.
 - **Three band layouts** — 10 (default), 15 and 31 bands, all industry-standard graphic-EQ frequencies; switching converts along the current curve so the sound barely changes.
-- **Built-in presets** — Voice (streams, lectures), Voice+ (very muddy speech), Flat (no processing).
+- **10 built-in presets** — Voice (streams, lectures), Voice+ (very muddy speech), Podcast, Movie, Music, Night, Less Bass, Bass Boost, Treble Boost, Flat (no processing).
 - **Your own presets** — new, save, save as, rename, delete; each preset remembers its own band count.
+- **Preset groups** — create groups, move presets into them, collapse them; names and order are remembered.
+- **Import / export** — export a preset to a file, or import presets someone shared.
+- **Paint-style editing (15 / 31 bands)** — press and drag across the bands to paint gains; fast drags never skip a band. A vertical drag changes only its starting column and moves on to neighbours only once it travels sideways past half a column. Hover highlights a band and shows its readout, the scroll wheel nudges it by 0.5 dB per step, Smooth softens the curve, Reset All zeroes every band, Revert undoes it.
+- **Keyboard shortcuts** — ⌘N new preset, ⌘S save, ⇧⌘S save as, ⌘E turn the effect on/off.
+- **Launch at Login** — a switch in Settings (move EasyEQ to the Applications folder first).
 - **Live curve** — the curve above the sliders shows the overall response in real time.
 - **No clipping** — automatic headroom plus a limiter, so even all bands at max won't distort; smooth ramps mean no clicks while dragging.
 - **Follows your output** — plug in headphones or switch speakers and the EQ follows.
@@ -221,6 +240,11 @@ scripts/package.sh 0.1.0   # build dist/EasyEQ-0.1.0.zip and .dmg
 
 - Ad-hoc signed by default. Set `SIGN_IDENTITY` to sign with your own certificate.
 - Local development tip: if your keychain has a self-signed code-signing identity named `EasyEQ Local Signing`, the scripts use it automatically, so rebuilds don't keep asking for the system-audio permission.
+
+### Test builds
+
+- Pushing any branch other than `main` (or running the "Test build" workflow manually from the Actions tab) builds a test DMG and zip and attaches them to that run as downloadable artifacts (kept for 14 days). Nothing is published to Releases. Test builds are versioned `0.0.0-test.<run number>`.
+- Tags containing a `-` (e.g. `v0.2.0-beta.1`) are published as pre-releases; a plain tag like `v0.2.0` is a normal release.
 
 ### How it works
 
