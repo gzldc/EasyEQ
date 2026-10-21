@@ -175,7 +175,8 @@ private struct BubbleWidthKey: PreferenceKey {
 // MARK: - Paint gesture
 
 /// Press-and-drag "painting": each drag sample is turned into per-band gains by `BandPainter.stroke` between the
-/// previous and the current point, so fast drags never skip bands. Never animates. A double-click calls
+/// previous and the current point, so fast drags never skip bands. A drag stays locked to its starting column until
+/// it has moved sideways by more than half a column. Never animates. A double-click calls
 /// `onDoubleClick` with the band under the pointer.
 private struct PaintGesture: ViewModifier {
     let painter: BandPainter?
@@ -188,6 +189,9 @@ private struct PaintGesture: ViewModifier {
 
     @State private var last: CGPoint?
     @State private var rejected = false
+    /// Where the current drag began, and whether it has left its starting column (see `isHorizontalIntent`).
+    @State private var start: CGPoint?
+    @State private var unlocked = false
 
     func body(content: Content) -> some View {
         content
@@ -201,11 +205,21 @@ private struct PaintGesture: ViewModifier {
                                 return
                             }
                             onActive(true)
+                            start = drag.startLocation
+                            unlocked = false
+                        }
+                        let origin = start ?? drag.startLocation
+                        if !unlocked, painter.isHorizontalIntent(start: (x: origin.x, y: origin.y),
+                                                                 current: (x: drag.location.x, y: drag.location.y)) {
+                            unlocked = true
                         }
                         let from = last ?? drag.startLocation
-                        last = drag.location
+                        // Column lock: until the pointer has travelled sideways past half a column, only the
+                        // starting column is painted (vertical strokes). Afterwards strokes run from there.
+                        let target = unlocked ? drag.location : CGPoint(x: origin.x, y: drag.location.y)
+                        last = target
                         let updates = painter.stroke(from: (x: from.x, y: from.y - originY),
-                                                     to: (x: drag.location.x, y: drag.location.y - originY))
+                                                     to: (x: target.x, y: target.y - originY))
                         var transaction = Transaction()
                         transaction.disablesAnimations = true
                         withTransaction(transaction) { onPaint(updates) }
@@ -213,6 +227,8 @@ private struct PaintGesture: ViewModifier {
                     .onEnded { _ in
                         if last != nil { onActive(false) }
                         last = nil
+                        start = nil
+                        unlocked = false
                         rejected = false
                     }
             )

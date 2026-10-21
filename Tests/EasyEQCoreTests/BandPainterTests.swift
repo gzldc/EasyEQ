@@ -70,6 +70,23 @@ private func painter31() -> BandPainter {
     #expect(m.gains.enumerated().filter { ![3, 4, 5].contains($0.offset) }.allSatisfy { $0.element == 0 })
 }
 
+@Test func smoothingSnapsNearZeroResultsToZero() {
+    var s = EQSettings.flat(.ten)
+    s.gains[4] = 0.8
+    let m = s.smoothed()
+    #expect(m.gains[4] == 0.4)
+    #expect(m.gains[3] == 0)    // 0.2 dB is inside the snap threshold
+    #expect(m.gains[5] == 0)
+    var edge = EQSettings.flat(.ten)
+    edge.gains[4] = 1.2
+    #expect(edge.smoothed().gains[3] == 0.3)   // 0.3 dB itself is kept
+    var tiny = EQSettings.flat(.ten)
+    tiny.gains[0] = 0.4
+    #expect(tiny.smoothed().gains[0] == 0.3)    // 0.75 * 0.4
+    tiny.gains[0] = 0.2
+    #expect(tiny.smoothed().gains[0] == 0)
+}
+
 @Test func smoothingEndsUseSingleNeighbour() {
     var s = EQSettings.flat(.ten)
     s.gains[0] = 12
@@ -112,4 +129,17 @@ private func painter31() -> BandPainter {
     #expect(p.band(atX: 50) == 0)
     #expect(p.stroke(from: (x: 0, y: 0), to: (x: 100, y: 100)).isEmpty)
     #expect(p.stroke(from: (x: 10, y: 0), to: (x: 12, y: 100)).isEmpty)
+}
+
+@Test func columnLockReleasesOnlyPastHalfAColumn() {
+    let p = painter31()   // 10 pt columns
+    let start = (x: 155.0, y: 120.0)
+    #expect(!p.isHorizontalIntent(start: start, current: (x: 155, y: 10)))      // straight up
+    #expect(!p.isHorizontalIntent(start: start, current: (x: 159.9, y: 200)))   // drift, still <= half a column
+    #expect(!p.isHorizontalIntent(start: start, current: (x: 150, y: 120)))     // exactly half a column left
+    #expect(p.isHorizontalIntent(start: start, current: (x: 160.5, y: 120)))
+    #expect(p.isHorizontalIntent(start: start, current: (x: 149, y: 120)))
+    #expect(!BandPainter(bandCount: 0, width: 310, height: 240)
+        .isHorizontalIntent(start: start, current: (x: 300, y: 0)))
+    #expect(!p.isHorizontalIntent(start: (x: .nan, y: 0), current: (x: 300, y: 0)))
 }

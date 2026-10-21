@@ -30,6 +30,14 @@ public struct BandPainter: Sendable {
         return value == 0 ? 0 : value   // normalise -0.0
     }
 
+    /// Whether a drag that began at `start` has travelled sideways far enough (more than half a column) to mean
+    /// "move on to the neighbouring bands". Until then a drag is a vertical stroke in its starting column, so a
+    /// slight sideways drift while dragging up or down never repaints the neighbour.
+    public func isHorizontalIntent(start: (x: Double, y: Double), current: (x: Double, y: Double)) -> Bool {
+        guard bandCount > 0, width > 0, !start.x.isNaN, !current.x.isNaN else { return false }
+        return abs(current.x - start.x) > width / Double(bandCount) / 2
+    }
+
     /// Every band whose column lies between the two points (inclusive, in travel order), so a fast drag
     /// never skips bands. Gains are interpolated along the segment at each column's centre; the end band
     /// uses `to`'s y. A move that stays in one column returns just that band at `to`'s y.
