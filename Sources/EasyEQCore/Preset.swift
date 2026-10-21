@@ -32,7 +32,7 @@ public struct Preset: Codable, Identifiable, Equatable, Sendable {
 }
 
 public enum BuiltInPreset: String, CaseIterable, Codable, Sendable {
-    case voice, voicePlus, flat
+    case voice, voicePlus, podcast, movie, music, night, lessBass, bassBoost, trebleBoost, flat
 
     public var nameKey: String { "preset.\(rawValue)" }
     public var descriptionKey: String { "preset.\(rawValue).desc" }
@@ -41,6 +41,13 @@ public enum BuiltInPreset: String, CaseIterable, Codable, Sendable {
         switch self {
         case .voice: return [-6, -5, -4, -3, -1, 0, 2, 2.5, 0, 0]
         case .voicePlus: return [-10, -9, -7, -5, -2, 0, 3, 3, 0, -1]
+        case .podcast: return [-6, -4, -2, -1, 0, 1, 3, 2, -1, -2]
+        case .movie: return [2, 2, 0, -1, 0, 1, 2, 2, 1, 0]
+        case .music: return [3, 2, 1, 0, -1, -1, 0, 1, 2, 2]
+        case .night: return [-8, -6, -4, -2, 0, 1, 2, 2, 0, -1]
+        case .lessBass: return [-8, -7, -5, -3, -1, 0, 0, 0, 0, 0]
+        case .bassBoost: return [5, 5, 4, 2, 0, 0, 0, 0, 0, 0]
+        case .trebleBoost: return [0, 0, 0, 0, 0, 1, 2, 3, 4, 4]
         case .flat: return Array(repeating: 0, count: 10)
         }
     }

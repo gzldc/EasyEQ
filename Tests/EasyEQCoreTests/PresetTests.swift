@@ -29,7 +29,27 @@ private func tempDir() -> URL {
     #expect(BuiltInPreset.voicePlus.settings(for: .ten).gains == [-10,-9,-7,-5,-2,0,3,3,0,-1])
     #expect(BuiltInPreset.flat.settings(for: .thirtyOne) == .flat(.thirtyOne))
     #expect(BuiltInPreset.voice.settings(for: .fifteen).gains.count == 15)
-    #expect(BuiltInPreset.allCases.map(\.nameKey) == ["preset.voice", "preset.voicePlus", "preset.flat"])
+}
+
+@Test func builtInPresetsMatchSpec() {
+    let expected: [(BuiltInPreset, String, [Double])] = [
+        (.voice, "voice", [-6, -5, -4, -3, -1, 0, 2, 2.5, 0, 0]),
+        (.voicePlus, "voicePlus", [-10, -9, -7, -5, -2, 0, 3, 3, 0, -1]),
+        (.podcast, "podcast", [-6, -4, -2, -1, 0, 1, 3, 2, -1, -2]),
+        (.movie, "movie", [2, 2, 0, -1, 0, 1, 2, 2, 1, 0]),
+        (.music, "music", [3, 2, 1, 0, -1, -1, 0, 1, 2, 2]),
+        (.night, "night", [-8, -6, -4, -2, 0, 1, 2, 2, 0, -1]),
+        (.lessBass, "lessBass", [-8, -7, -5, -3, -1, 0, 0, 0, 0, 0]),
+        (.bassBoost, "bassBoost", [5, 5, 4, 2, 0, 0, 0, 0, 0, 0]),
+        (.trebleBoost, "trebleBoost", [0, 0, 0, 0, 0, 1, 2, 3, 4, 4]),
+        (.flat, "flat", Array(repeating: 0, count: 10)),
+    ]
+    #expect(BuiltInPreset.allCases.map(\.rawValue) == expected.map(\.1))
+    #expect(BuiltInPreset.allCases.map(\.nameKey) == expected.map { "preset.\($0.1)" })
+    #expect(BuiltInPreset.allCases.map(\.descriptionKey) == expected.map { "preset.\($0.1).desc" })
+    for (preset, name, gains) in expected {
+        #expect(preset.settings(for: .ten).gains == gains, "\(name)")
+    }
 }
 
 @Test func deleteRemovesFile() throws {

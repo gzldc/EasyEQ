@@ -52,8 +52,8 @@ struct Theme {
         LinearGradient(colors: [accentStart, accentEnd], startPoint: .top, endPoint: .bottom)
     }
 
-    /// Dots in front of the built-in presets, in `BuiltInPreset.allCases` order (Voice, Voice+, Flat).
-    static let builtInDots: [Color] = [0x6E7CFF, 0x9B7CFF, 0x45C9BA].map { Color(hex: $0) }
+    /// Dots in front of the built-in presets, in `BuiltInPreset.allCases` order (Voice, Voice+, Podcast, Movie, Music, Night, Less Bass, Bass Boost, Treble Boost, Flat).
+    static let builtInDots: [Color] = [0x6E7CFF, 0x9B7CFF, 0x5BC0FF, 0xFF8FB1, 0xC79BFF, 0x7C8CB8, 0xFFB36B, 0xE07A5F, 0x8BD86A, 0x45C9BA].map { Color(hex: $0) }
 
     /// User presets cycle through these in list order.
     static let userDots: [Color] = [0xFFB36B, 0xFF8FB1, 0x5BC0FF, 0x8BD86A, 0xC79BFF].map { Color(hex: $0) }

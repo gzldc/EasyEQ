@@ -13,6 +13,10 @@ struct LocalizerTests {
         "device.output", "permission.title", "permission.open",
         "settings.language", "settings.system", "settings.appearance", "appearance.light", "appearance.dark",
         "preset.voice.desc", "preset.voicePlus.desc", "preset.flat.desc",
+        "preset.podcast", "preset.movie", "preset.music", "preset.night",
+        "preset.lessBass", "preset.bassBoost", "preset.trebleBoost",
+        "preset.podcast.desc", "preset.movie.desc", "preset.music.desc", "preset.night.desc",
+        "preset.lessBass.desc", "preset.bassBoost.desc", "preset.trebleBoost.desc",
         "engine.starting", "engine.failed", "engine.retry", "error.saveFailed", "error.deleteFailed",
     ]
 

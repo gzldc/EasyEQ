@@ -4,6 +4,13 @@
 "sidebar.new" = "新建预设";
 "preset.voice" = "人声";
 "preset.voicePlus" = "人声·强";
+"preset.podcast" = "播客";
+"preset.movie" = "电影";
+"preset.music" = "音乐";
+"preset.night" = "夜间";
+"preset.lessBass" = "低音减弱";
+"preset.bassBoost" = "低音增强";
+"preset.trebleBoost" = "高音增强";
 "preset.flat" = "原声";
 "editor.effect" = "效果开关";
 "editor.bands" = "频段";
@@ -39,6 +46,13 @@
 "error.deleteFailed" = "预设删除失败。";
 "preset.voice.desc" = "压掉闷音，让说话更清楚";
 "preset.voicePlus.desc" = "人声特别闷的时候用";
+"preset.podcast.desc" = "讲话清楚，齿音更柔和";
+"preset.movie.desc" = "对白清楚，保留一点氛围低音";
+"preset.music.desc" = "轻微加强低音和高音";
+"preset.night.desc" = "小音量时听清对白，不吵人";
+"preset.lessBass.desc" = "去掉轰鸣和发闷";
+"preset.bassBoost.desc" = "让低音更饱满";
+"preset.trebleBoost.desc" = "让声音更亮、更清脆";
 "preset.flat.desc" = "不做任何处理";
 "settings.appearance" = "外观";
 "appearance.light" = "浅色";

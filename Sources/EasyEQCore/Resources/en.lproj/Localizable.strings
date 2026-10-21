@@ -4,6 +4,13 @@
 "sidebar.new" = "New Preset";
 "preset.voice" = "Voice";
 "preset.voicePlus" = "Voice+";
+"preset.podcast" = "Podcast";
+"preset.movie" = "Movie";
+"preset.music" = "Music";
+"preset.night" = "Night";
+"preset.lessBass" = "Less Bass";
+"preset.bassBoost" = "Bass Boost";
+"preset.trebleBoost" = "Treble Boost";
 "preset.flat" = "Flat";
 "editor.effect" = "Effect";
 "editor.bands" = "Bands";
@@ -39,6 +46,13 @@
 "error.deleteFailed" = "Couldn't delete the preset.";
 "preset.voice.desc" = "Less boom, clearer speech";
 "preset.voicePlus.desc" = "For very muddy voices";
+"preset.podcast.desc" = "Clear speech, softer sibilance";
+"preset.movie.desc" = "Clear dialogue with a little ambient bass";
+"preset.music.desc" = "A gentle lift to bass and treble";
+"preset.night.desc" = "Hear dialogue at low volume without the rumble";
+"preset.lessBass.desc" = "Removes boom and muddiness";
+"preset.bassBoost.desc" = "Fuller bass";
+"preset.trebleBoost.desc" = "Brighter, crisper sound";
 "preset.flat.desc" = "No processing";
 "settings.appearance" = "Appearance";
 "appearance.light" = "Light";
