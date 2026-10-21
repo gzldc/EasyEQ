@@ -99,7 +99,8 @@ final class AppModel: ObservableObject {
 
     func revert() {
         session.revert()
-        applyToEngine()
+        // Reverting can undo an unsaved layout switch, so keep lastLayout in sync.
+        selectionOrLayoutChanged()
     }
 
     // MARK: - Saving
