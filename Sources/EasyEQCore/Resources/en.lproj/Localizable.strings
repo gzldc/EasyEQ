@@ -72,3 +72,6 @@
 "error.importFailed" = "Couldn't import: %@";
 "error.exportFailed" = "Couldn't export the preset.";
 "error.groupSaveFailed" = "Couldn't save groups.";
+"a11y.expanded" = "Expanded";
+"a11y.collapsed" = "Collapsed";
+"a11y.presetCount" = "%d presets";

@@ -1,3 +1,4 @@
+import EasyEQCore
 import SwiftUI
 
 /// A sidebar section title. Collapsible headers (Built-in, user groups) show a chevron and toggle on click;
@@ -10,10 +11,40 @@ struct GroupHeader: View {
     var onToggle: () -> Void = {}
     var onDropPreset: (([String]) -> Bool)?
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var localizer: Localizer
     @State private var targeted = false
 
     var body: some View {
         content
+            .modifier(DropModifier(onDrop: onDropPreset, targeted: $targeted))
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let isCollapsed {
+            Button(action: onToggle) { row(chevron: isCollapsed ? 0 : 90) }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityValue(accessibilityValue(isCollapsed: isCollapsed))
+                .accessibilityAddTraits(.isHeader)
+        } else {
+            row(chevron: nil)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    private func accessibilityValue(isCollapsed: Bool) -> String {
+        let state = localizer.t(isCollapsed ? "a11y.collapsed" : "a11y.expanded")
+        guard let count else { return state }
+        return "\(String(format: localizer.t("a11y.presetCount"), count)), \(state)"
+    }
+
+    /// The whole padded row is the hit area.
+    private func row(chevron: Double?) -> some View {
+        label(chevron: chevron)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
@@ -21,19 +52,6 @@ struct GroupHeader: View {
                     .fill(targeted ? theme.hoverRowFill : .clear)
             )
             .contentShape(Rectangle())
-            .modifier(DropModifier(onDrop: onDropPreset, targeted: $targeted))
-            .accessibilityAddTraits(.isHeader)
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        if let isCollapsed {
-            Button(action: onToggle) { label(chevron: isCollapsed ? 0 : 90) }
-                .buttonStyle(.plain)
-                .accessibilityValue(isCollapsed ? "collapsed" : "expanded")
-        } else {
-            label(chevron: nil)
-        }
     }
 
     private func label(chevron: Double?) -> some View {
@@ -60,7 +78,6 @@ struct GroupHeader: View {
             }
         }
         .foregroundStyle(theme.textSecondary)
-        .contentShape(Rectangle())
     }
 }
 

@@ -72,3 +72,6 @@
 "error.importFailed" = "以下文件导入失败：%@";
 "error.exportFailed" = "预设导出失败。";
 "error.groupSaveFailed" = "分组保存失败。";
+"a11y.expanded" = "已展开";
+"a11y.collapsed" = "已折叠";
+"a11y.presetCount" = "%d 个预设";

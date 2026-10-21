@@ -22,6 +22,7 @@ struct LocalizerTests {
         "menu.newPresetHere", "menu.deleteGroup", "menu.renameGroup", "sheet.groupName",
         "confirm.deletePreset.title", "confirm.deletePreset.message", "confirm.delete",
         "error.importFailed", "error.exportFailed", "error.groupSaveFailed",
+        "a11y.expanded", "a11y.collapsed", "a11y.presetCount",
     ]
 
     @Test func everyKeyExistsInBothLanguages() {

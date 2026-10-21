@@ -74,6 +74,7 @@ struct PresetSidebar: View {
             Button(localizer.t("confirm.delete"), role: .destructive) {
                 model.deletePresetConfirmed(preset.id)
             }
+            Button(localizer.t("sheet.cancel"), role: .cancel) {}
         } message: { _ in
             Text(localizer.t("confirm.deletePreset.message"))
         }
@@ -182,8 +183,15 @@ struct PresetSidebar: View {
         return id
     }
 
-    /// Presets in on-screen order, skipping collapsed sections.
-    private var orderedRefs: [PresetRef] {
+    /// Every preset in on-screen order, ignoring collapsed sections.
+    private var fullOrderRefs: [PresetRef] {
+        BuiltInPreset.allCases.map { PresetRef.builtIn($0) }
+            + ungroupedPresets.map { PresetRef.user($0.id) }
+            + model.groupLayout.groups.flatMap { members(of: $0).map { PresetRef.user($0.id) } }
+    }
+
+    /// Presets currently shown, in on-screen order (skips collapsed sections).
+    private var visibleRefs: [PresetRef] {
         var refs: [PresetRef] = []
         if !builtInCollapsed { refs += BuiltInPreset.allCases.map { PresetRef.builtIn($0) } }
         refs += ungroupedPresets.map { PresetRef.user($0.id) }
@@ -211,10 +219,10 @@ struct PresetSidebar: View {
     }
 
     private func moveSelection(by delta: Int) {
-        let refs = orderedRefs
-        guard let current = refs.firstIndex(of: model.session.selection) else { return }
-        let next = min(max(current + delta, 0), refs.count - 1)
-        select(refs[next])
+        // A hidden selection (collapsed section) steps to the nearest visible neighbour.
+        guard let next = SidebarOrder.nextVisible(from: model.session.selection, delta: delta,
+                                                  fullOrder: fullOrderRefs, visible: visibleRefs) else { return }
+        select(next)
     }
 
     /// Re-selecting the current preset must not discard unsaved edits, so it is ignored.
