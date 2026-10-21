@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import EasyEQAudio
 import EasyEQCore
@@ -61,6 +62,7 @@ final class AppModel: ObservableObject {
 
     /// Starts system-wide processing with the restored curve.
     func start() {
+        applyAppearance()
         applyToEngine()
         engine.start()
     }
@@ -168,6 +170,12 @@ final class AppModel: ObservableObject {
         localizer.setLanguage(AppSettings.resolve(choice, preferredLanguages: Locale.preferredLanguages))
     }
 
+    func setAppearance(_ choice: AppearanceChoice) {
+        settings.appearance = choice
+        persistSettings()
+        applyAppearance()
+    }
+
     func displayName(for ref: PresetRef) -> String {
         switch ref {
         case .builtIn(let preset): return localizer.t(preset.nameKey)
@@ -218,6 +226,15 @@ final class AppModel: ObservableObject {
         settings.selection = session.selection
         settings.lastLayout = session.current.layout
         settingsStore.save(settings)
+    }
+
+    /// `nil` follows the system; the others pin the whole app (main and settings windows) to light or dark.
+    private func applyAppearance() {
+        switch settings.appearance {
+        case .system: NSApp.appearance = nil
+        case .light: NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
     }
 
     private func applyToEngine() {
