@@ -18,11 +18,30 @@ final class AppModel: ObservableObject {
     /// User groups (display order) and which sidebar sections are collapsed; persisted in `groups.json`.
     @Published private(set) var groupLayout: GroupLayout
     /// Last preset-file/IO failure, for the UI to surface. Never cleared automatically.
-    @Published var lastError: String?
-    /// The name sheet to show, if any. Lives here (not in the window) so menu commands can open it too.
-    @Published var pendingSheet: NameSheetRequest? {
-        didSet { if pendingSheet != nil { requestMainWindow?() } }
+    @Published var lastError: String? {
+        // The alert lives in the main window, so a failure raised while it is closed must bring it back.
+        didSet { if lastError != nil { requestMainWindow?() } }
     }
+    /// The preset awaiting delete confirmation. Lives here (not in the sidebar) so the menu commands know
+    /// that a confirmation is on screen.
+    @Published var pendingDelete: Preset?
+    /// The name sheet to show, if any. Lives here (not in the window) so menu commands can open it too.
+    /// A request made while the delete confirmation or the error alert is up could never present (and would
+    /// leave the shortcuts disabled), so it is discarded.
+    @Published var pendingSheet: NameSheetRequest? {
+        didSet {
+            guard pendingSheet != nil else { return }
+            if blocksSheet {
+                pendingSheet = nil
+            } else {
+                requestMainWindow?()
+            }
+        }
+    }
+    /// The delete confirmation or the error alert is showing.
+    private var blocksSheet: Bool { pendingDelete != nil || lastError != nil }
+    /// True while any sheet, confirmation or alert is up: the menu shortcuts that open sheets are off meanwhile.
+    var isModalPresented: Bool { pendingSheet != nil || blocksSheet }
     /// Whether the app is registered as a login item (read from the system, which the user can also change).
     @Published private(set) var launchAtLogin = false
     /// Localized failure text for the last login-item change; shown next to the toggle.

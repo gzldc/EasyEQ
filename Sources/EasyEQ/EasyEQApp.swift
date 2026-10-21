@@ -48,15 +48,15 @@ struct EasyEQCommands: Commands {
                 model.pendingSheet = NameSheetRequest(mode: .new)
             }
             .keyboardShortcut("n", modifiers: .command)
-            .disabled(model.pendingSheet != nil)
+            .disabled(model.isModalPresented)
         }
         CommandGroup(after: .saveItem) {
             Button(localizer.t("menu.save")) { model.save() }
                 .keyboardShortcut("s", modifiers: .command)
-                .disabled(model.pendingSheet != nil)
+                .disabled(model.isModalPresented)
             Button(localizer.t("menu.saveAs")) { model.presentSaveAs() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
-                .disabled(model.pendingSheet != nil)
+                .disabled(model.isModalPresented)
             Divider()
             Button(localizer.t("menu.toggleEffect")) { model.toggleEffect() }
                 .keyboardShortcut("e", modifiers: .command)

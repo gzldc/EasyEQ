@@ -10,7 +10,6 @@ struct PresetSidebar: View {
     @Environment(\.theme) private var theme
     /// Bumped on each click so the key catcher takes first responder again.
     @State private var keyActivation = 0
-    @State private var pendingDelete: Preset?
 
     private static let collapseAnimation = Animation.easeOut(duration: 0.2)
 
@@ -66,10 +65,10 @@ struct PresetSidebar: View {
         .frame(maxHeight: .infinity)
         .background(theme.sidebarFill.ignoresSafeArea())
         .confirmationDialog(
-            String(format: localizer.t("confirm.deletePreset.title"), pendingDelete?.name ?? ""),
-            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            String(format: localizer.t("confirm.deletePreset.title"), model.pendingDelete?.name ?? ""),
+            isPresented: Binding(get: { model.pendingDelete != nil }, set: { if !$0 { model.pendingDelete = nil } }),
             titleVisibility: .visible,
-            presenting: pendingDelete
+            presenting: model.pendingDelete
         ) { preset in
             Button(localizer.t("confirm.delete"), role: .destructive) {
                 model.deletePresetConfirmed(preset.id)
@@ -144,7 +143,7 @@ struct PresetSidebar: View {
         }
         Button(localizer.t("menu.export")) { model.exportPreset(preset.id) }
         Divider()
-        Button(localizer.t("menu.delete"), role: .destructive) { pendingDelete = preset }
+        Button(localizer.t("menu.delete"), role: .destructive) { model.pendingDelete = preset }
     }
 
     @ViewBuilder
