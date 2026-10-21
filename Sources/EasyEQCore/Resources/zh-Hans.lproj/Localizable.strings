@@ -32,3 +32,8 @@
 "permission.check" = "没效果？检查权限";
 "settings.language" = "语言";
 "settings.system" = "跟随系统";
+"engine.starting" = "正在启动…";
+"engine.failed" = "声音处理没有运行。";
+"engine.retry" = "重试";
+"error.saveFailed" = "预设保存失败。";
+"error.deleteFailed" = "预设删除失败。";

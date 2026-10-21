@@ -12,6 +12,7 @@ struct LocalizerTests {
         "zone.voice", "zone.presence", "zone.clarity", "zone.sibilance", "zone.air",
         "device.output", "permission.title", "permission.open",
         "settings.language", "settings.system",
+        "engine.starting", "engine.failed", "engine.retry", "error.saveFailed", "error.deleteFailed",
     ]
 
     @Test func everyKeyExistsInBothLanguages() {

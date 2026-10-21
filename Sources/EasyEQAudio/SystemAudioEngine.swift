@@ -70,8 +70,8 @@ public final class SystemAudioEngine: ObservableObject {
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.wantsRunning, self.state == .permissionDenied || self.permissionSuspected else { return }
-                audioLog.info("App became active while permission was denied or suspect; rebuilding")
+                guard let self, self.wantsRunning, self.needsRebuildOnActivation else { return }
+                audioLog.info("App became active while permission was denied, suspect or the engine had failed; rebuilding")
                 self.build()
             }
         }
@@ -89,6 +89,20 @@ public final class SystemAudioEngine: ObservableObject {
         wantsRunning = true
         installSystemListener()
         build()
+    }
+
+    /// Rebuilds the pipeline after a failure (or any time the user asks). No-op unless the engine is meant to run.
+    public func retry() {
+        guard wantsRunning else { return }
+        audioLog.info("retry requested")
+        rebuildTask?.cancel()
+        rebuildTask = nil
+        build()
+    }
+
+    private var needsRebuildOnActivation: Bool {
+        if case .failed = state { return true }
+        return state == .permissionDenied || permissionSuspected
     }
 
     /// Idempotent; safe to call from `applicationWillTerminate`. Always leaves system audio un-muted.
@@ -114,7 +128,11 @@ public final class SystemAudioEngine: ObservableObject {
         } catch let error as CoreAudioError {
             teardown()
             state = EngineLogic.state(forFailedCall: error.call, description: error.description)
-            if state == .permissionDenied { audioLog.error("\(error.call, privacy: .public) failed; treating as permission denied") }
+            if state == .permissionDenied {
+                audioLog.error("\(error.call, privacy: .public) failed; treating as permission denied")
+            } else {
+                audioLog.error("Engine failed: \(error.description, privacy: .public)")
+            }
         } catch {
             teardown()
             audioLog.error("Unexpected error: \(String(describing: error), privacy: .public)")
@@ -235,6 +253,7 @@ public final class SystemAudioEngine: ObservableObject {
             audioLog.error("\(error.description, privacy: .public)")
             teardown()
             state = EngineLogic.state(forFailedCall: error.call, description: error.description)
+            if case .failed = state { audioLog.error("Engine failed: \(error.description, privacy: .public)") }
             return
         }
 

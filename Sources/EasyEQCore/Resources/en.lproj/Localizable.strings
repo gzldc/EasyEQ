@@ -32,3 +32,8 @@
 "permission.check" = "No effect? Check permission";
 "settings.language" = "Language";
 "settings.system" = "Follow System";
+"engine.starting" = "Starting…";
+"engine.failed" = "Audio processing isn't running.";
+"engine.retry" = "Retry";
+"error.saveFailed" = "Couldn't save the preset.";
+"error.deleteFailed" = "Couldn't delete the preset.";

@@ -92,9 +92,13 @@ private struct DeviceFooter: View {
         HStack(spacing: 10) {
             Text(text)
                 .font(.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isFailed ? Color.orange : Color.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
+            if isFailed {
+                Button(localizer.t("engine.retry")) { engine.retry() }
+                    .font(.callout)
+            }
             // Low-key hint: silence while other apps hold output streams is also the normal idle state.
             if engine.permissionSuspected && engine.state != .permissionDenied {
                 Button(localizer.t("permission.check")) {
@@ -107,9 +111,16 @@ private struct DeviceFooter: View {
     }
 
     private var text: String {
-        if case .running(let deviceName) = engine.state {
-            return String(format: localizer.t("device.output"), deviceName)
+        switch engine.state {
+        case .running(let deviceName): return String(format: localizer.t("device.output"), deviceName)
+        case .starting: return localizer.t("engine.starting")
+        case .failed: return localizer.t("engine.failed")   // the technical reason is in the log, not the UI
+        case .stopped, .permissionDenied: return ""
         }
-        return ""
+    }
+
+    private var isFailed: Bool {
+        if case .failed = engine.state { return true }
+        return false
     }
 }
