@@ -4,11 +4,15 @@
 # (the DMG needs dmgbuild: pip install dmgbuild).
 set -euo pipefail
 
-if [ $# -ne 1 ] || [ -z "$1" ]; then
-  echo "usage: $0 <version>   (e.g. 0.1.0)" >&2
+usage() {
+  echo "usage: $0 <version>   (X.Y.Z, optionally with a suffix: 0.2.0, 0.2.0-beta.1, 0.0.0-test.7)" >&2
   exit 64
-fi
+}
+[ $# -eq 1 ] || usage
 VERSION="$1"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]] || usage
+# CFBundleShortVersionString must be plain numeric X.Y.Z; the full string (with any suffix) goes in CFBundleVersion.
+SHORT_VERSION="$(echo "$VERSION" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')"
 
 cd "$(dirname "$0")/.."
 
@@ -33,7 +37,8 @@ ZIP="dist/EasyEQ-${VERSION}.zip"
 DMG="dist/EasyEQ-${VERSION}.dmg"
 
 # Stamp the release version into the bundle, then re-sign (editing Info.plist invalidates the signature).
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${SHORT_VERSION}" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${VERSION}" "$APP/Contents/Info.plist"
 sign_app "$APP"
 codesign --verify --deep --strict "$APP"
 
