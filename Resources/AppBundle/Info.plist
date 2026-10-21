@@ -8,6 +8,8 @@
 	<string>EasyEQ</string>
 	<key>CFBundleExecutable</key>
 	<string>EasyEQ</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>app.easyeq.EasyEQ</string>
 	<key>CFBundleInfoDictionaryVersion</key>

@@ -16,6 +16,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cp "$BIN_DIR/EasyEQ" "$APP/Contents/MacOS/EasyEQ"
 cp Resources/AppBundle/Info.plist "$APP/Contents/Info.plist"
+cp Resources/AppBundle/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp -R Resources/AppBundle/en.lproj Resources/AppBundle/zh-Hans.lproj "$APP/Contents/Resources/"
 # Localizer.resourceBundle() looks for this bundle in Contents/Resources.
 cp -R "$BIN_DIR/EasyEQ_EasyEQCore.bundle" "$APP/Contents/Resources/"
