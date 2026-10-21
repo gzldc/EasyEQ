@@ -27,7 +27,9 @@ public struct GroupLayout: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        groups = try c.decodeIfPresent([PresetGroup].self, forKey: .groups) ?? []
+        let decoded = try c.decodeIfPresent([PresetGroup].self, forKey: .groups) ?? []
+        var seen = Set<UUID>()
+        groups = decoded.filter { seen.insert($0.id).inserted }   // keep first of duplicate ids
         collapsed = try c.decodeIfPresent(Set<String>.self, forKey: .collapsed) ?? []
     }
 

@@ -131,3 +131,18 @@ private func tempDir() -> URL {
     try store.save(p)
     #expect(store.loadAll() == [p])
 }
+
+@Test func malformedOptionalFieldsDoNotDropPreset() throws {
+    let base = #""id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"x","settings":{"gains":[0,0,0,0,0,0,0,0,0,0],"layout":10}"#
+    for extra in [#""groupID":"abc""#, #""groupID":"""#, #""groupID":42"#, #""groupID":null"#,
+                  #""formatVersion":"1""#, #""formatVersion":null"#] {
+        let p = try JSONDecoder().decode(Preset.self, from: Data("{\(base),\(extra)}".utf8))
+        #expect(p.groupID == nil)
+        #expect(p.formatVersion == 1)
+        #expect(p.name == "x")
+    }
+    // Core fields stay fatal.
+    #expect(throws: (any Error).self) {
+        try JSONDecoder().decode(Preset.self, from: Data(#"{"id":"abc","name":"x","settings":{"gains":[],"layout":10}}"#.utf8))
+    }
+}

@@ -25,8 +25,9 @@ public struct Preset: Codable, Identifiable, Equatable, Sendable {
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         settings = try c.decode(EQSettings.self, forKey: .settings)
-        formatVersion = try c.decodeIfPresent(Int.self, forKey: .formatVersion) ?? 1
-        groupID = try c.decodeIfPresent(UUID.self, forKey: .groupID)
+        // Optional fields are tolerant: a malformed value must never make the whole preset disappear.
+        formatVersion = (try? c.decodeIfPresent(Int.self, forKey: .formatVersion)) ?? 1
+        groupID = (try? c.decodeIfPresent(UUID.self, forKey: .groupID)) ?? nil
     }
 
     public func encode(to encoder: Encoder) throws {

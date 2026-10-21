@@ -83,3 +83,9 @@ private func cleanup(_ url: URL) {
     layout.toggleCollapsed(key)
     #expect(!layout.isCollapsed(key))
 }
+
+@Test func duplicateGroupIDsAreDroppedOnDecode() throws {
+    let raw = #"{"groups":[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"First"},{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"Second"},{"id":"7F9619FF-8B86-D011-B42D-00C04FC964FF","name":"Third"}]}"#
+    let layout = try JSONDecoder().decode(GroupLayout.self, from: Data(raw.utf8))
+    #expect(layout.groups.map(\.name) == ["First", "Third"])
+}
