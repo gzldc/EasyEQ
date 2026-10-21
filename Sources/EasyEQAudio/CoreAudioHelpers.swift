@@ -82,6 +82,11 @@ func setIOProcStreamUsage(
     var addr = address(kAudioDevicePropertyIOProcStreamUsage, scope: scope)
     var size: UInt32 = 0
     try check(AudioObjectGetPropertyDataSize(device, &addr, 0, nil, &size), "AudioObjectGetPropertyDataSize(IOProcStreamUsage)")
+    let flagsOffset = MemoryLayout<AudioHardwareIOProcStreamUsage>.offset(of: \.mStreamIsOn)!
+    // The pointer field is written below, so the buffer must at least reach the flags array.
+    guard size >= flagsOffset else {
+        throw CoreAudioError(call: "IOProcStreamUsage size check", status: kAudioHardwareBadPropertySizeError)
+    }
     let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioHardwareIOProcStreamUsage>.alignment)
     defer { raw.deallocate() }
     raw.initializeMemory(as: UInt8.self, repeating: 0, count: Int(size))
@@ -89,8 +94,7 @@ func setIOProcStreamUsage(
     usage.pointee.mIOProc = unsafeBitCast(procID, to: UnsafeMutableRawPointer.self)
     try check(AudioObjectGetPropertyData(device, &addr, 0, nil, &size, raw), "AudioObjectGetPropertyData(IOProcStreamUsage)")
     let streamCount = Int(usage.pointee.mNumberStreams)
-    let flagsOffset = MemoryLayout<AudioHardwareIOProcStreamUsage>.offset(of: \.mStreamIsOn)!
-    guard flagsOffset + streamCount * MemoryLayout<UInt32>.size <= Int(size) else {
+    guard EngineLogic.streamUsageFits(byteSize: Int(size), streamCount: streamCount, flagsOffset: flagsOffset) else {
         throw CoreAudioError(call: "IOProcStreamUsage size check", status: kAudioHardwareBadPropertySizeError)
     }
     guard let flags = flagsForStreamCount(streamCount), flags.count == streamCount else {

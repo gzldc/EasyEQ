@@ -1,5 +1,6 @@
 import CoreAudio
 import Foundation
+import os
 
 /// Pure decision logic for `SystemAudioEngine`, kept free of Core Audio calls so it can be unit-tested.
 enum EngineLogic {
@@ -32,6 +33,13 @@ enum EngineLogic {
         return (0..<streamCount).map { $0 >= streamCount - tapBufferCount }
     }
 
+    /// Whether a `kAudioDevicePropertyIOProcStreamUsage` payload of `byteSize` bytes can hold the header up to the
+    /// flags array (`flagsOffset`) plus `streamCount` flags. Checked before any byte of the buffer is written.
+    static func streamUsageFits(byteSize: Int, streamCount: Int, flagsOffset: Int) -> Bool {
+        guard byteSize >= flagsOffset, streamCount >= 0 else { return false }
+        return flagsOffset + streamCount * MemoryLayout<UInt32>.size <= byteSize
+    }
+
     /// Calls that the system gates behind the audio-capture permission. Their failure means "permission".
     static func state(forFailedCall call: String, description: String) -> EngineState {
         let gated = ["AudioHardwareCreateProcessTap", "AudioDeviceStart"]
@@ -62,5 +70,33 @@ struct PermissionHint {
             zeroSeconds = 0   // nothing is playing, or the device is not running yet: no evidence either way
         }
         return suspected
+    }
+}
+
+/// A thread-safe, strictly increasing request counter. The main actor advances it for every start / rebuild / stop;
+/// work queued on the audio queue carries the value it was issued with and drops itself when a newer request exists.
+final class EpochGate: @unchecked Sendable {
+    private let state = OSAllocatedUnfairLock(initialState: 0)
+
+    /// Starts a new epoch and returns it.
+    @discardableResult
+    func advance() -> Int { state.withLock { value in value += 1; return value } }
+
+    var current: Int { state.withLock { $0 } }
+
+    func isCurrent(_ epoch: Int) -> Bool { current == epoch }
+}
+
+/// Runs a closure on a queue and waits for it, but never longer than `timeout`. Used at quit so a wedged
+/// Core Audio call cannot keep the app from exiting.
+enum BoundedWait {
+    /// Returns `true` if `work` finished within `timeout` seconds. On `false` the work keeps running on `queue`.
+    static func run(on queue: DispatchQueue, timeout: TimeInterval, _ work: @escaping @Sendable () -> Void) -> Bool {
+        let finished = DispatchSemaphore(value: 0)
+        queue.async {
+            work()
+            finished.signal()
+        }
+        return finished.wait(timeout: .now() + timeout) == .success
     }
 }
