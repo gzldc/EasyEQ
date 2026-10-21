@@ -1,9 +1,15 @@
 name: Test build
 
-# Manual trigger: builds a test DMG + zip from the selected branch and attaches them to the run
-# as downloadable artifacts. Nothing is published to Releases.
+# Builds a test DMG + zip and attaches them to the run as downloadable artifacts. Nothing is published to
+# Releases. Triggers: a push to any branch except main, or manually (the manual button only appears once this
+# file is on the default branch).
 on:
+  push:
+    branches-ignore: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
