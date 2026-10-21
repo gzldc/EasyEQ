@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Optional: Developer ID signing + notarization (see README / spec section 9) ---
+      # To enable: uncomment the steps below, add the secrets listed, and the build
+      # picks up SIGN_IDENTITY automatically. No other code changes are needed.
+      # Secrets (by name): APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
+      #   KEYCHAIN_PASSWORD, APPLE_ID, APPLE_ID_PASSWORD (app-specific password),
+      #   APPLE_TEAM_ID, SIGN_IDENTITY (e.g. "Developer ID Application: Name (TEAMID)").
+      #
+      # - name: Import Developer ID certificate
+      #   env:
+      #     APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      #     APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      #     KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      #   run: |
+      #     echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+      #     security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+      #     security set-keychain-settings -lut 21600 build.keychain
+      #     security default-keychain -s build.keychain
+      #     security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+      #     security import "$RUNNER_TEMP/certificate.p12" -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+      #     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+      #     rm -f "$RUNNER_TEMP/certificate.p12"
+
+      - name: Package
+        # To sign with a Developer ID certificate, uncomment the env block below.
+        # env:
+        #   SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
+        run: scripts/package.sh "${GITHUB_REF_NAME#v}"
+
+      # - name: Notarize and staple
+      #   env:
+      #     APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      #   run: |
+      #     VERSION="${GITHUB_REF_NAME#v}"
+      #     xcrun notarytool submit "dist/EasyEQ-${VERSION}.zip" \
+      #       --apple-id "$APPLE_ID" --password "$APPLE_ID_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+      #     xcrun stapler staple dist/EasyEQ.app
+      #     # Re-create the artifacts so they contain the stapled app.
+      #     rm -f "dist/EasyEQ-${VERSION}.zip" "dist/EasyEQ-${VERSION}.dmg"
+      #     ditto -c -k --keepParent dist/EasyEQ.app "dist/EasyEQ-${VERSION}.zip"
+      #     STAGE="$(mktemp -d)"
+      #     cp -R dist/EasyEQ.app "$STAGE/"
+      #     ln -s /Applications "$STAGE/Applications"
+      #     hdiutil create -volname EasyEQ -srcfolder "$STAGE" -ov -format UDZO "dist/EasyEQ-${VERSION}.dmg"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/EasyEQ-*.zip
+            dist/EasyEQ-*.dmg
