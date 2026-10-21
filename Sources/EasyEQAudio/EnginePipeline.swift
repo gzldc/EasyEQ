@@ -6,6 +6,8 @@ import os
 enum PipelineOutcome: Sendable {
     case running(deviceName: String, context: RenderContext, ownProcess: AudioObjectID?)
     case failed(EngineState)
+    /// The build phase is over and `AudioDeviceStart` is about to run (it may now wait on the permission prompt).
+    case awaitingStart
 }
 
 /// Owns every Core Audio object of the tap pipeline and performs every Core Audio call for it.
@@ -46,7 +48,9 @@ final class EnginePipeline: @unchecked Sendable {
         var tapID = AudioObjectID(kAudioObjectUnknown)
         var aggregateID = AudioObjectID(kAudioObjectUnknown)
         var procID: AudioDeviceIOProcID?
-        var started = false
+        /// Set (on `startQueue`) the moment `AudioDeviceStart` is actually called; teardown only stops a device
+        /// whose start was attempted.
+        var startAttempted: StartAttempt?
         /// `AudioDeviceStart` has been dispatched but has not returned yet (it blocks while the prompt is open).
         var startPending = false
         /// Left when the start task finishes; teardown of a pending start waits on it before stopping the device.
@@ -62,20 +66,33 @@ final class EnginePipeline: @unchecked Sendable {
         var tapID: AudioObjectID
         var aggregateID: AudioObjectID
         var procID: AudioDeviceIOProcID?
-        var started: Bool
+        var startAttempted: StartAttempt?
         var startPending: Bool
         var startDone: DispatchGroup?
         var context: RenderContext?   // kept alive until the IOProc is gone
     }
 
+    /// Thread-safe "AudioDeviceStart was called" flag shared between `startQueue` and teardown.
+    private final class StartAttempt: @unchecked Sendable {
+        private let flag = OSAllocatedUnfairLock(initialState: false)
+        func markAttempted() { flag.withLock { $0 = true } }
+        var attempted: Bool { flag.withLock { $0 } }
+    }
+
     private struct StartRequest: @unchecked Sendable {
         let epoch: Int
+        let attempt: StartAttempt
         let aggregateID: AudioObjectID
         let procID: AudioDeviceIOProcID?
         let tapBufferCount: Int
         let deviceName: String
         let done: DispatchGroup
     }
+
+    private struct BuildCancelled: Error {}
+
+    /// Set once the app is quitting: a build that notices it destroys its tap at once and stops.
+    private static let terminating = OSAllocatedUnfairLock(initialState: false)
 
     private var session = Session()
     private var systemListener: AudioObjectPropertyListenerBlock?
@@ -104,7 +121,8 @@ final class EnginePipeline: @unchecked Sendable {
     /// `stop()`, but waits up to `timeout` seconds for the teardown. For `applicationWillTerminate`: the tap is
     /// destroyed first, which un-mutes system audio. Returns `false` if Core Audio did not answer in time.
     func stopAndWait(timeout: TimeInterval) -> Bool {
-        BoundedWait.run(on: queue, timeout: timeout) { self.stopNow() }
+        Self.terminating.withLock { $0 = true }
+        return BoundedWait.run(on: queue, timeout: timeout) { self.stopNow() }
     }
 
     /// Whether some other process is producing output. Runs on a utility queue, never on the caller's thread.
@@ -127,6 +145,11 @@ final class EnginePipeline: @unchecked Sendable {
         guard gate.isCurrent(epoch) else { return }
         do {
             try buildPipeline(epoch: epoch)
+        } catch is BuildCancelled {
+            // Superseded or quitting mid-build: destroy what exists now (un-muting audio); the newer request,
+            // if any, builds from scratch.
+            audioLog.info("Build superseded; tearing down")
+            teardown()
         } catch let error as CoreAudioError {
             teardown()
             let state = EngineLogic.state(forFailedCall: error.call, description: error.description)
@@ -162,6 +185,7 @@ final class EnginePipeline: @unchecked Sendable {
         try check(AudioHardwareCreateProcessTap(description, &tapID), "AudioHardwareCreateProcessTap")
         session.tapID = tapID
         audioLog.info("Created process tap \(tapID)")
+        try continueOrCancel(epoch)   // a stale tap keeps system audio muted, so stop before building on it
 
         // 2. Default output device.
         let deviceID = try defaultOutputDeviceID()
@@ -204,6 +228,7 @@ final class EnginePipeline: @unchecked Sendable {
             "AudioHardwareCreateAggregateDevice")
         session.aggregateID = aggregateID
         audioLog.info("Created aggregate device \(aggregateID)")
+        try continueOrCancel(epoch)
 
         // 4. Small buffer for low latency (best effort).
         do {
@@ -240,15 +265,25 @@ final class EnginePipeline: @unchecked Sendable {
 
         // 6. Stream usage + start, off this queue: AudioDeviceStart blocks while the system-audio permission
         // prompt is on screen, and a stop must still be able to run meanwhile.
+        try continueOrCancel(epoch)
         let done = DispatchGroup()
         done.enter()
         session.startDone = done
-        session.started = true   // so teardown always stops the device, even while the start is still pending
+        let attempt = StartAttempt()
+        session.startAttempted = attempt
         session.startPending = true
         let request = StartRequest(
-            epoch: epoch, aggregateID: aggregateID, procID: procID,
+            epoch: epoch, attempt: attempt, aggregateID: aggregateID, procID: procID,
             tapBufferCount: tapBufferCount, deviceName: deviceName, done: done)
+        // Build phase over: the engine's watchdog stops here; the start may now legitimately wait on the prompt.
+        publish?(epoch, .awaitingStart)
         startQueue.async { self.runStart(request) }
+    }
+
+    private func continueOrCancel(_ epoch: Int) throws {
+        guard EngineLogic.shouldContinueBuild(
+            epochIsCurrent: gate.isCurrent(epoch), terminating: Self.terminating.withLock { $0 })
+        else { throw BuildCancelled() }
     }
 
     /// Runs on `startQueue`. Never touches `session`; reports back to `queue`.
@@ -270,6 +305,7 @@ final class EnginePipeline: @unchecked Sendable {
                 audioLog.error("Could not restrict IOProc input streams to the tap; continuing: \(String(describing: error), privacy: .public)")
             }
         }
+        request.attempt.markAttempted()
         let status = AudioDeviceStart(request.aggregateID, request.procID)
         request.done.leave()
         queue.async { self.finishStart(request, status: status) }
@@ -304,10 +340,10 @@ final class EnginePipeline: @unchecked Sendable {
         publish?(request.epoch, .running(deviceName: request.deviceName, context: context, ownProcess: session.ownProcess))
     }
 
-    /// Detaches the current session and destroys it (stop device -> destroy IOProc -> destroy aggregate -> destroy
-    /// tap). While the permission prompt is still pending, stopping the device can block for as long as the prompt
-    /// is open, so the tap is destroyed first (system audio un-mutes immediately) and the rest is deferred to
-    /// `teardownQueue`, after the start call has returned.
+    /// Detaches the current session and destroys it: tap first (system audio un-mutes immediately), then stop
+    /// device -> destroy IOProc -> destroy aggregate. While the permission prompt is still pending, stopping the
+    /// device can block for as long as the prompt is open, so that part is deferred to `teardownQueue`, after the
+    /// start call has returned.
     private func teardown() {
         let s = session
         session = Session()
@@ -318,7 +354,7 @@ final class EnginePipeline: @unchecked Sendable {
         }
         Self.destroy(Teardown(
             tapID: s.tapID, aggregateID: s.aggregateID, procID: s.procID,
-            started: s.started, startPending: s.startPending, startDone: s.startDone, context: s.context))
+            startAttempted: s.startAttempted, startPending: s.startPending, startDone: s.startDone, context: s.context))
     }
 
     private static func destroy(_ t: Teardown) {
@@ -331,23 +367,23 @@ final class EnginePipeline: @unchecked Sendable {
             audioLog.info("Destroyed process tap; system audio is un-muted")
         }
         func destroyDevice() {
-            if t.started { log(AudioDeviceStop(t.aggregateID, t.procID), "AudioDeviceStop") }
+            if t.startAttempted?.attempted == true { log(AudioDeviceStop(t.aggregateID, t.procID), "AudioDeviceStop") }
             if let procID = t.procID { log(AudioDeviceDestroyIOProcID(t.aggregateID, procID), "AudioDeviceDestroyIOProcID") }
             if t.aggregateID != AudioObjectID(kAudioObjectUnknown) {
                 log(AudioHardwareDestroyAggregateDevice(t.aggregateID), "AudioHardwareDestroyAggregateDevice")
             }
             withExtendedLifetime(t.context) {}
         }
+        // The tap goes first in every case: it is what mutes system audio, so nothing that can stall may precede it.
+        destroyTap()
         if t.startPending {
             audioLog.info("Teardown while the start is still pending; finishing off the pipeline queue")
-            destroyTap()
             teardownQueue.async {
                 t.startDone?.wait()
                 destroyDevice()
             }
         } else {
             destroyDevice()
-            destroyTap()
         }
     }
 

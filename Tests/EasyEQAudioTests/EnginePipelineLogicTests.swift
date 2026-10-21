@@ -30,6 +30,22 @@ struct EnginePipelineLogicTests {
         #expect(gate.current == 200)
     }
 
+    @Test func buildContinuesOnlyWhenCurrentAndNotQuitting() {
+        #expect(EngineLogic.shouldContinueBuild(epochIsCurrent: true, terminating: false))
+        #expect(!EngineLogic.shouldContinueBuild(epochIsCurrent: false, terminating: false))
+        #expect(!EngineLogic.shouldContinueBuild(epochIsCurrent: true, terminating: true))
+    }
+
+    @Test func watchdogFiresOnlyForTheStillPendingBuild() {
+        #expect(EngineLogic.watchdogShouldFail(state: .starting, epochIsCurrent: true, wantsRunning: true))
+        #expect(!EngineLogic.watchdogShouldFail(state: .starting, epochIsCurrent: false, wantsRunning: true))   // newer build
+        #expect(!EngineLogic.watchdogShouldFail(state: .starting, epochIsCurrent: true, wantsRunning: false))   // stopped
+        #expect(!EngineLogic.watchdogShouldFail(state: .running(deviceName: "x"), epochIsCurrent: true, wantsRunning: true))
+        #expect(!EngineLogic.watchdogShouldFail(state: .permissionDenied, epochIsCurrent: true, wantsRunning: true))
+        #expect(!EngineLogic.watchdogShouldFail(state: .failed("x"), epochIsCurrent: true, wantsRunning: true))
+        #expect(EngineLogic.buildWatchdogSeconds >= 5)
+    }
+
     @Test func boundedWaitReturnsTrueWhenWorkFinishes() {
         let queue = DispatchQueue(label: "test.free")
         let ran = OSAtomicFlag()

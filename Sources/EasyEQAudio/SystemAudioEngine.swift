@@ -32,6 +32,7 @@ public final class SystemAudioEngine: ObservableObject {
     private var wantsRunning = false
     private var rebuildTask: Task<Void, Never>?
     private var monitorTask: Task<Void, Never>?
+    private var watchdogTask: Task<Void, Never>?
     private var activeObserver: NSObjectProtocol?
 
     public init() {
@@ -110,6 +111,8 @@ public final class SystemAudioEngine: ObservableObject {
         rebuildTask = nil
         monitorTask?.cancel()
         monitorTask = nil
+        watchdogTask?.cancel()
+        watchdogTask = nil
         permissionSuspected = false
         pipeline.gate.advance()   // results of any build issued earlier are now stale
         if wasActive { audioLog.info("stopped") }
@@ -122,16 +125,43 @@ public final class SystemAudioEngine: ObservableObject {
         monitorTask = nil
         permissionSuspected = false
         state = .starting
-        pipeline.build(epoch: pipeline.gate.advance())
+        let epoch = pipeline.gate.advance()
+        startWatchdog(epoch: epoch)
+        pipeline.build(epoch: epoch)
+    }
+
+    /// If the build phase has not reported back in time (a wedged `coreaudiod`), say so instead of showing
+    /// "starting" forever, so the user gets the failure text and Retry. Covers the build only: the pipeline
+    /// reports `.awaitingStart` before `AudioDeviceStart`, which may wait on the permission prompt as long as it likes.
+    private func startWatchdog(epoch: Int) {
+        watchdogTask?.cancel()
+        watchdogTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: EngineLogic.buildWatchdogSeconds * 1_000_000_000)
+            guard !Task.isCancelled, let self else { return }
+            guard EngineLogic.watchdogShouldFail(
+                state: self.state, epochIsCurrent: self.pipeline.gate.isCurrent(epoch), wantsRunning: self.wantsRunning)
+            else { return }
+            audioLog.error("Audio build did not finish within \(EngineLogic.buildWatchdogSeconds) s; Core Audio may be unresponsive")
+            self.state = .failed("Core Audio did not respond within \(EngineLogic.buildWatchdogSeconds) s")
+        }
     }
 
     /// Receives a pipeline result. Anything from a superseded build is dropped.
     private func apply(_ outcome: PipelineOutcome, epoch: Int) {
         guard wantsRunning, pipeline.gate.isCurrent(epoch) else { return }
         switch outcome {
+        case .awaitingStart:
+            watchdogTask?.cancel()
+            watchdogTask = nil
+            // A build that finished late, after the watchdog gave up, is progressing again.
+            if case .failed = state { state = .starting }
         case .failed(let failure):
+            watchdogTask?.cancel()
+            watchdogTask = nil
             state = failure
         case .running(let deviceName, let context, let own):
+            watchdogTask?.cancel()
+            watchdogTask = nil
             state = .running(deviceName: deviceName)
             startMonitoring(context: context, ownProcess: own)
         }

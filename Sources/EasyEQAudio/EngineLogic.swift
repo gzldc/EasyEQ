@@ -40,6 +40,19 @@ enum EngineLogic {
         return flagsOffset + streamCount * MemoryLayout<UInt32>.size <= byteSize
     }
 
+    /// How long the build phase (everything before `AudioDeviceStart`) may take before the engine reports failure.
+    static let buildWatchdogSeconds: UInt64 = 10
+
+    /// A build checks this between steps: it stops when a newer request exists or the app is quitting.
+    static func shouldContinueBuild(epochIsCurrent: Bool, terminating: Bool) -> Bool {
+        epochIsCurrent && !terminating
+    }
+
+    /// The watchdog fires only for the build it was started for, and only while that build is still pending.
+    static func watchdogShouldFail(state: EngineState, epochIsCurrent: Bool, wantsRunning: Bool) -> Bool {
+        wantsRunning && epochIsCurrent && state == .starting
+    }
+
     /// Calls that the system gates behind the audio-capture permission. Their failure means "permission".
     static func state(forFailedCall call: String, description: String) -> EngineState {
         let gated = ["AudioHardwareCreateProcessTap", "AudioDeviceStart"]
