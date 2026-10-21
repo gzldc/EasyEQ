@@ -15,7 +15,7 @@ struct PresetRow: View {
                 Circle().fill(dot).frame(width: 8, height: 8)
                 Text(title)
                     .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(isSelected ? theme.accentStart : theme.textPrimary)
+                    .foregroundStyle(isSelected ? theme.accentText : theme.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 0)

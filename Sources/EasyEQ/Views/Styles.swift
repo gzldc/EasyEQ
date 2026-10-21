@@ -67,7 +67,7 @@ struct AccentLinkStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12))
-            .foregroundStyle(theme.accentStart)
+            .foregroundStyle(theme.accentText)
             .underline(configuration.isPressed)
             .opacity(configuration.isPressed ? 0.7 : 1)
     }

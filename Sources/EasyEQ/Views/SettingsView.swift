@@ -9,7 +9,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             row(localizer.t("settings.language")) {
-                Picker("", selection: Binding(
+                Picker(localizer.t("settings.language"), selection: Binding(
                     get: { model.settings.language },
                     set: { model.setLanguage($0) })
                 ) {
@@ -20,7 +20,7 @@ struct SettingsView: View {
             }
             Rectangle().fill(theme.hairline).frame(height: 1).padding(.horizontal, 16)
             row(localizer.t("settings.appearance")) {
-                Picker("", selection: Binding(
+                Picker(localizer.t("settings.appearance"), selection: Binding(
                     get: { model.settings.appearance },
                     set: { model.setAppearance($0) })
                 ) {

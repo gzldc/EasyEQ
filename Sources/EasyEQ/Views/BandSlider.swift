@@ -21,29 +21,24 @@ struct BandSlider: View {
     /// 18 pt normally; 31 bands leave only ~16 pt per column, so the thumb shrinks to avoid overlapping.
     private var thumbSize: CGFloat { compact ? 14 : 18 }
 
+    /// Fixed row height so text scaling never changes the track geometry (all columns stay level).
+    private var textRowHeight: CGFloat { compact ? 11 : 15 }
+
     var body: some View {
         VStack(spacing: 4) {
-            Text(Self.valueText(value))
-                .font(.system(size: compact ? 8 : 11, weight: .semibold).monospacedDigit())
-                .foregroundStyle(theme.accentStart)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
+            textRow(Self.valueText(value),
+                    font: .system(size: compact ? 8 : 11, weight: .semibold).monospacedDigit(),
+                    color: theme.accentText)
 
             track
                 .frame(minHeight: 150)
 
             if let label {
-                Text(label)
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+                textRow(label, font: .system(size: 11), color: theme.textSecondary)
             }
-            Text(Self.frequencyText(frequency))
-                .font(.system(size: compact ? 8 : 11))
-                .foregroundStyle(theme.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
+            textRow(Self.frequencyText(frequency),
+                    font: .system(size: compact ? 8 : 11),
+                    color: theme.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .help(tooltip ?? "")
@@ -57,6 +52,17 @@ struct BandSlider: View {
             @unknown default: break
             }
         }
+    }
+
+    /// One line of text in a fixed-height row; long text shrinks inside the row instead of resizing it.
+    private func textRow(_ text: String, font: Font, color: Color) -> some View {
+        Text(text)
+            .font(font)
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .frame(maxWidth: .infinity)
+            .frame(height: textRowHeight)
     }
 
     private var track: some View {

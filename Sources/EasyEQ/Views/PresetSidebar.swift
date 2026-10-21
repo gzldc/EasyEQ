@@ -8,6 +8,8 @@ struct PresetSidebar: View {
     let present: (NameSheetRequest) -> Void
     @EnvironmentObject private var localizer: Localizer
     @Environment(\.theme) private var theme
+    /// Bumped on each click so the key catcher takes first responder again.
+    @State private var keyActivation = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,6 +49,8 @@ struct PresetSidebar: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
         }
+        // Arrow keys move the selection through the same guard as clicks.
+        .background(ArrowKeyCatcher(onMove: { moveSelection(by: $0) }, activation: keyActivation))
         // Clears the traffic lights, which float over the hidden title bar.
         .padding(.top, 38)
         .frame(width: Self.width)
@@ -60,6 +64,7 @@ struct PresetSidebar: View {
             .foregroundStyle(theme.textSecondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func row(_ ref: PresetRef, title: String, dot: Color) -> some View {
@@ -72,8 +77,21 @@ struct PresetSidebar: View {
         model.userPresets.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
+    /// Presets in on-screen order: built-ins, then user presets sorted by name.
+    private var orderedRefs: [PresetRef] {
+        BuiltInPreset.allCases.map { PresetRef.builtIn($0) } + sortedUserPresets.map { PresetRef.user($0.id) }
+    }
+
+    private func moveSelection(by delta: Int) {
+        let refs = orderedRefs
+        guard let current = refs.firstIndex(of: model.session.selection) else { return }
+        let next = min(max(current + delta, 0), refs.count - 1)
+        select(refs[next])
+    }
+
     /// Re-selecting the current preset must not discard unsaved edits, so it is ignored.
     private func select(_ ref: PresetRef) {
+        keyActivation += 1   // so arrow keys keep working after a click
         guard ref != model.session.selection else { return }
         withAnimation(.easeOut(duration: 0.2)) { model.select(ref) }
     }

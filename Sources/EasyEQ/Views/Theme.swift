@@ -20,6 +20,8 @@ struct Theme {
     // Accent
     let accentStart: Color
     let accentEnd: Color
+    /// Small text in the accent hue (slider values, selected preset, links): readable on the surfaces.
+    let accentText: Color
 
     // Controls
     let selectedRowFill: Color
@@ -72,8 +74,9 @@ struct Theme {
         cardShadowOffset: 4,
         textPrimary: Color(hex: 0x1D2340),
         textSecondary: Color(hex: 0x6B7192),
-        accentStart: Color(hex: 0x6E7CFF),
-        accentEnd: Color(hex: 0x45C9BA),
+        accentStart: Color(hex: 0x5A68F0),
+        accentEnd: Color(hex: 0x2FA89B),
+        accentText: Color(hex: 0x4A55D6),
         selectedRowFill: .white,
         selectedRowShadow: Color(hex: 0x3C46A0, opacity: 0.10),
         hoverRowFill: Color(hex: 0x1E285A, opacity: 0.04),
@@ -100,6 +103,7 @@ struct Theme {
         textSecondary: Color(hex: 0x9AA0BF),
         accentStart: Color(hex: 0x8090FF),
         accentEnd: Color(hex: 0x52D6C7),
+        accentText: Color(hex: 0x9AA6FF),
         selectedRowFill: .white.opacity(0.10),
         selectedRowShadow: .clear,
         hoverRowFill: .white.opacity(0.05),

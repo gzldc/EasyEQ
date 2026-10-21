@@ -37,7 +37,9 @@ private struct DeviceFooter: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Circle().fill(dotColor).frame(width: 7, height: 7)
+            if !text.isEmpty {
+                Circle().fill(dotColor).frame(width: 7, height: 7)
+            }
             Text(text)
                 .font(.system(size: 12))
                 .foregroundStyle(isFailed ? theme.warning : theme.textSecondary)

@@ -54,9 +54,11 @@ private struct CurveCanvas: View, Animatable {
     var body: some View {
         Canvas { context, size in
             let w = size.width, h = size.height
+            // Inset so the 2.5 pt stroke at +/-12 dB (and its round caps) isn't cut off at the edges.
+            let inset: CGFloat = 2
             func y(_ db: Double) -> CGFloat {
                 let clamped = min(max(db, -Self.rangeDB), Self.rangeDB)
-                return h * (1 - (clamped + Self.rangeDB) / (2 * Self.rangeDB))
+                return inset + (h - 2 * inset) * (1 - (clamped + Self.rangeDB) / (2 * Self.rangeDB))
             }
 
             // Grid: +/-6 dB faint, 0 dB dashed.
@@ -78,14 +80,14 @@ private struct CurveCanvas: View, Animatable {
             var curve = Path()
             var minY = y(0), maxY = y(0)
             for (i, db) in values.enumerated() {
-                let point = CGPoint(x: w * Double(i) / Double(values.count - 1), y: y(db))
+                let point = CGPoint(x: inset + (w - 2 * inset) * Double(i) / Double(values.count - 1), y: y(db))
                 minY = min(minY, point.y)
                 maxY = max(maxY, point.y)
                 if i == 0 { curve.move(to: point) } else { curve.addLine(to: point) }
             }
             var fill = curve
-            fill.addLine(to: CGPoint(x: w, y: y(0)))
-            fill.addLine(to: CGPoint(x: 0, y: y(0)))
+            fill.addLine(to: CGPoint(x: w - inset, y: y(0)))
+            fill.addLine(to: CGPoint(x: inset, y: y(0)))
             fill.closeSubpath()
             // Start color 18% -> 0%, top to bottom of the filled area.
             context.fill(fill, with: .linearGradient(
@@ -94,7 +96,7 @@ private struct CurveCanvas: View, Animatable {
                 endPoint: CGPoint(x: 0, y: max(maxY, minY + 1))))
             context.stroke(curve, with: .linearGradient(
                 Gradient(colors: [theme.accentStart, theme.accentEnd]),
-                startPoint: .zero, endPoint: CGPoint(x: w, y: 0)),
+                startPoint: CGPoint(x: inset, y: 0), endPoint: CGPoint(x: w - inset, y: 0)),
                 style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
         }
     }
