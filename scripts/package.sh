@@ -13,13 +13,15 @@ cd "$(dirname "$0")/.."
 
 scripts/bundle.sh
 
+source scripts/sign.sh
+
 APP=dist/EasyEQ.app
 ZIP="dist/EasyEQ-${VERSION}.zip"
 DMG="dist/EasyEQ-${VERSION}.dmg"
 
 # Stamp the release version into the bundle, then re-sign (editing Info.plist invalidates the signature).
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "$APP/Contents/Info.plist"
-codesign --force --options runtime --timestamp=none --sign "${SIGN_IDENTITY:--}" "$APP"
+sign_app "$APP"
 codesign --verify --deep --strict "$APP"
 
 rm -f "$ZIP" "$DMG"

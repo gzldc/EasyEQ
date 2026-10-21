@@ -6,6 +6,8 @@ cd "$(dirname "$0")/.."
 
 APP=dist/EasyEQ.app
 
+source scripts/sign.sh
+
 swift build -c release --arch arm64 --arch x86_64
 BIN_DIR="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
 
@@ -18,6 +20,6 @@ cp -R Resources/AppBundle/en.lproj Resources/AppBundle/zh-Hans.lproj "$APP/Conte
 # Localizer.resourceBundle() looks for this bundle in Contents/Resources.
 cp -R "$BIN_DIR/EasyEQ_EasyEQCore.bundle" "$APP/Contents/Resources/"
 
-codesign --force --options runtime --timestamp=none --sign "${SIGN_IDENTITY:--}" "$APP"
+sign_app "$APP"
 codesign --verify --deep --strict "$APP"
 echo "Built $APP"
