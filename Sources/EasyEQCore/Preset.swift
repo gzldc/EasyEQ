@@ -5,12 +5,37 @@ public struct Preset: Codable, Identifiable, Equatable, Sendable {
     public var name: String
     public var settings: EQSettings
     public var formatVersion: Int = 1
+    /// The user group this preset belongs to; `nil` means ungrouped (also the case for v0.1 files).
+    public var groupID: UUID?
 
-    public init(id: UUID, name: String, settings: EQSettings, formatVersion: Int = 1) {
+    public init(id: UUID, name: String, settings: EQSettings, formatVersion: Int = 1, groupID: UUID? = nil) {
         self.id = id
         self.name = name
         self.settings = settings
         self.formatVersion = formatVersion
+        self.groupID = groupID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, settings, formatVersion, groupID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        settings = try c.decode(EQSettings.self, forKey: .settings)
+        formatVersion = try c.decodeIfPresent(Int.self, forKey: .formatVersion) ?? 1
+        groupID = try c.decodeIfPresent(UUID.self, forKey: .groupID)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(settings, forKey: .settings)
+        try c.encode(formatVersion, forKey: .formatVersion)
+        try c.encodeIfPresent(groupID, forKey: .groupID)
     }
 
     /// Returns a copy that is safe to feed to the EQ: finite gains clamped to ±12 dB and rounded to 0.1 dB,

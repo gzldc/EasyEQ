@@ -103,3 +103,31 @@ private func tempDir() -> URL {
     }
     #expect(positions == positions.sorted())
 }
+
+@Test func oldPresetJSONDecodesUngrouped() throws {
+    let raw = #"{"formatVersion":1,"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"old","settings":{"gains":[1,2,3,4,5,6,7,8,9,10],"layout":10}}"#
+    let decoded = try JSONDecoder().decode(Preset.self, from: Data(raw.utf8))
+    #expect(decoded.groupID == nil)
+    #expect(decoded.name == "old")
+    // formatVersion missing defaults to 1
+    let noVersion = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"x","settings":{"gains":[0,0,0,0,0,0,0,0,0,0],"layout":10}}"#
+    #expect(try JSONDecoder().decode(Preset.self, from: Data(noVersion.utf8)).formatVersion == 1)
+
+    let ungrouped = Preset(id: UUID(), name: "u", settings: .flat(.ten))
+    let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+    let json = String(decoding: try encoder.encode(ungrouped), as: UTF8.self)
+    #expect(!json.contains("groupID"))
+
+    let gid = UUID()
+    let grouped = Preset(id: UUID(), name: "g", settings: .flat(.ten), groupID: gid)
+    let data = try encoder.encode(grouped)
+    #expect(try JSONDecoder().decode(Preset.self, from: data).groupID == gid)
+    #expect(grouped.sanitized().groupID == gid)
+}
+
+@Test func groupedPresetSurvivesStore() throws {
+    let store = PresetStore(directory: tempDir())
+    let p = Preset(id: UUID(), name: "g", settings: .flat(.ten), groupID: UUID())
+    try store.save(p)
+    #expect(store.loadAll() == [p])
+}
