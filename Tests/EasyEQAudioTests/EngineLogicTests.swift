@@ -26,6 +26,21 @@ struct EngineLogicTests {
         #expect(EngineLogic.tapBufferCount(bufferChannels: [0, 2], tapChannels: 2) == 1)     // zero-width ahead of the tap is ignored
     }
 
+    @Test func streamUsageEnablesOnlyTheTrailingTapStreams() {
+        // Headset mic ahead of an interleaved tap stream.
+        #expect(EngineLogic.inputStreamUsage(streamCount: 2, tapBufferCount: 1) == [false, true])
+        // Interface inputs ahead of a planar (2-buffer) tap.
+        #expect(EngineLogic.inputStreamUsage(streamCount: 3, tapBufferCount: 2) == [false, true, true])
+        // Tap only: nothing to disable.
+        #expect(EngineLogic.inputStreamUsage(streamCount: 1, tapBufferCount: 1) == [true])
+    }
+
+    @Test func streamUsageRejectsImpossibleCounts() {
+        #expect(EngineLogic.inputStreamUsage(streamCount: 1, tapBufferCount: 2) == nil)
+        #expect(EngineLogic.inputStreamUsage(streamCount: 0, tapBufferCount: 0) == nil)
+        #expect(EngineLogic.inputStreamUsage(streamCount: 2, tapBufferCount: 0) == nil)
+    }
+
     @Test func permissionGatedCallsMapToDenied() {
         #expect(EngineLogic.state(forFailedCall: "AudioHardwareCreateProcessTap", description: "x") == .permissionDenied)
         #expect(EngineLogic.state(forFailedCall: "AudioDeviceStart", description: "x") == .permissionDenied)

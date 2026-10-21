@@ -232,6 +232,19 @@ public final class SystemAudioEngine: ObservableObject {
             AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil, context.makeIOBlock()),
             "AudioDeviceCreateIOProcIDWithBlock")
         session.procID = procID
+
+        // Enable only the tap's input streams. Left alone, starting the IOProc would also open the output device's
+        // own inputs (a headset microphone: orange indicator, Bluetooth hands-free mode, unentitled mic access).
+        if let procID {
+            do {
+                let flags = try setIOProcStreamUsage(aggregateID, procID: procID, scope: kAudioObjectPropertyScopeInput) {
+                    EngineLogic.inputStreamUsage(streamCount: $0, tapBufferCount: tapBufferCount)
+                }
+                audioLog.info("IOProc input stream usage set (on = tap only): \(flags.map { $0 ? "on" : "off" }.joined(separator: ","), privacy: .public)")
+            } catch {
+                audioLog.error("Could not restrict IOProc input streams to the tap; continuing: \(String(describing: error), privacy: .public)")
+            }
+        }
         session.started = true   // so teardown always stops the device, even while the start is still pending
         session.startPending = true
 

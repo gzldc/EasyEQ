@@ -24,6 +24,14 @@ enum EngineLogic {
         return nil
     }
 
+    /// Per-input-stream on/off flags for the aggregate's IOProc: only the trailing `tapBufferCount` streams (the
+    /// tap's) are enabled, so the sub-device's own inputs (headset microphone) are never opened. Returns `nil`
+    /// when the counts cannot describe a layout.
+    static func inputStreamUsage(streamCount: Int, tapBufferCount: Int) -> [Bool]? {
+        guard tapBufferCount > 0, streamCount >= tapBufferCount else { return nil }
+        return (0..<streamCount).map { $0 >= streamCount - tapBufferCount }
+    }
+
     /// Calls that the system gates behind the audio-capture permission. Their failure means "permission".
     static func state(forFailedCall call: String, description: String) -> EngineState {
         let gated = ["AudioHardwareCreateProcessTap", "AudioDeviceStart"]

@@ -72,6 +72,36 @@ func defaultOutputDeviceID() throws -> AudioDeviceID {
     return id
 }
 
+/// Sets `kAudioDevicePropertyIOProcStreamUsage` for `procID` on `scope`: the returned flag `i` turns stream `i` on or off.
+/// The property payload is `AudioHardwareIOProcStreamUsage` (mIOProc pointer, mNumberStreams, mStreamIsOn[]).
+/// Reads the current value first so the stream count is the one the device reports; returns the flags applied.
+func setIOProcStreamUsage(
+    _ device: AudioObjectID, procID: AudioDeviceIOProcID, scope: AudioObjectPropertyScope,
+    flagsForStreamCount: (Int) -> [Bool]?
+) throws -> [Bool] {
+    var addr = address(kAudioDevicePropertyIOProcStreamUsage, scope: scope)
+    var size: UInt32 = 0
+    try check(AudioObjectGetPropertyDataSize(device, &addr, 0, nil, &size), "AudioObjectGetPropertyDataSize(IOProcStreamUsage)")
+    let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioHardwareIOProcStreamUsage>.alignment)
+    defer { raw.deallocate() }
+    raw.initializeMemory(as: UInt8.self, repeating: 0, count: Int(size))
+    let usage = raw.assumingMemoryBound(to: AudioHardwareIOProcStreamUsage.self)
+    usage.pointee.mIOProc = unsafeBitCast(procID, to: UnsafeMutableRawPointer.self)
+    try check(AudioObjectGetPropertyData(device, &addr, 0, nil, &size, raw), "AudioObjectGetPropertyData(IOProcStreamUsage)")
+    let streamCount = Int(usage.pointee.mNumberStreams)
+    let flagsOffset = MemoryLayout<AudioHardwareIOProcStreamUsage>.offset(of: \.mStreamIsOn)!
+    guard flagsOffset + streamCount * MemoryLayout<UInt32>.size <= Int(size) else {
+        throw CoreAudioError(call: "IOProcStreamUsage size check", status: kAudioHardwareBadPropertySizeError)
+    }
+    guard let flags = flagsForStreamCount(streamCount), flags.count == streamCount else {
+        throw CoreAudioError(call: "IOProcStreamUsage layout check", status: kAudioDeviceUnsupportedFormatError)
+    }
+    let isOn = (raw + flagsOffset).assumingMemoryBound(to: UInt32.self)
+    for i in 0..<streamCount { isOn[i] = flags[i] ? 1 : 0 }
+    try check(AudioObjectSetPropertyData(device, &addr, 0, nil, size, raw), "AudioObjectSetPropertyData(IOProcStreamUsage)")
+    return flags
+}
+
 /// The Core Audio process object for this process, or `nil` if it cannot be resolved.
 func ownProcessObjectID() -> AudioObjectID? {
     var pid = getpid()
