@@ -31,10 +31,24 @@ struct EditorHeader: View {
             Text(localizer.t("editor.bands"))
                 .font(.system(size: 12.5))
                 .foregroundStyle(theme.textSecondary)
+                .lineLimit(1)
+                .fixedSize()
             BandCountPicker(selection: session.current.layout) { layout in
                 guard layout != model.session.current.layout else { return }
                 withAnimation(.easeOut(duration: 0.2)) { model.switchLayout(layout) }
             }
+            Button(localizer.t("editor.smooth")) {
+                withAnimation(.easeOut(duration: 0.2)) { model.smoothCurve() }
+            }
+            .buttonStyle(SoftButtonStyle(small: true))
+            .fixedSize()
+            .disabled(session.current.smoothed() == session.current)
+            Button(localizer.t("editor.zero")) {
+                withAnimation(.easeOut(duration: 0.2)) { model.zeroAllBands() }
+            }
+            .buttonStyle(SoftButtonStyle(small: true))
+            .fixedSize()
+            .disabled(session.current == session.current.zeroed())
             Toggle(localizer.t("editor.effect"), isOn: Binding(
                 get: { model.settings.effectEnabled },
                 set: { model.setEffectEnabled($0) })

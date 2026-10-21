@@ -96,6 +96,29 @@ final class AppModel: ObservableObject {
         applyToEngine()
     }
 
+    /// Applies a painted stroke: every update goes through the session's rounding / snap rules, but the
+    /// session is published and the engine updated once per call, not once per band.
+    func setGains(_ updates: [(index: Int, gain: Double)]) {
+        guard !updates.isEmpty else { return }
+        var edited = session
+        for update in updates { edited.setGain(update.gain, at: update.index) }
+        guard edited != session else { return }
+        session = edited
+        applyToEngine()
+    }
+
+    /// One light smoothing pass over the whole curve (Revert undoes it).
+    func smoothCurve() {
+        session.replaceCurrent(with: session.current.smoothed())
+        applyToEngine()
+    }
+
+    /// All bands back to 0 dB (Revert undoes it).
+    func zeroAllBands() {
+        session.replaceCurrent(with: session.current.zeroed())
+        applyToEngine()
+    }
+
     func resetBand(at index: Int) {
         session.resetBand(at: index)
         applyToEngine()

@@ -25,15 +25,18 @@ extension View {
 
 /// Light-background button (Save As, Revert, Retry, Open System Settings, Cancel).
 struct SoftButtonStyle: ButtonStyle {
+    /// Smaller text and padding for secondary actions that sit in a crowded row.
+    var small = false
+
     @Environment(\.theme) private var theme
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12.5))
+            .font(.system(size: small ? 11.5 : 12.5))
             .foregroundStyle(theme.textPrimary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, small ? 9 : 12)
+            .padding(.vertical, small ? 4 : 6)
             .background(
                 RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
                     .fill(theme.buttonFill)
@@ -83,6 +86,8 @@ struct GradientSwitchStyle: ToggleStyle {
                 configuration.label
                     .font(.system(size: 12.5))
                     .foregroundStyle(theme.textSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
                 ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                     Capsule().fill(theme.track)
                     Capsule().fill(theme.accentGradient).opacity(configuration.isOn ? 1 : 0)
