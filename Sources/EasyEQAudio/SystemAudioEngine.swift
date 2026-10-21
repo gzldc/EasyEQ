@@ -124,9 +124,14 @@ public final class SystemAudioEngine: ObservableObject {
 
     private func buildPipeline() throws {
         // 1. Tap: everything except this process, muted at the hardware while tapped.
-        let own = ownProcessObjectID()
+        // Never build a tap that does not exclude this process: it would record EasyEQ's own processed output and
+        // feed it back through the EQ. Fail instead; the retry path recovers once the process object resolves.
+        guard let own = ownProcessObjectID() else {
+            audioLog.error("Refusing to build a tap that cannot exclude this process")
+            throw CoreAudioError(call: "own process object lookup", status: kAudioHardwareBadObjectError)
+        }
         session.ownProcess = own
-        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: own.map { [$0] } ?? [])
+        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [own])
         description.name = "EasyEQ"
         description.muteBehavior = .mutedWhenTapped
         description.isPrivate = true
