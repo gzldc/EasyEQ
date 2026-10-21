@@ -7,11 +7,11 @@ struct PermissionBanner: View {
     @ObservedObject var engine: SystemAudioEngine
     @EnvironmentObject private var localizer: Localizer
 
-    private static let settingsURL =
+    static let settingsURL =
         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture")!
 
     var body: some View {
-        if engine.state == .permissionDenied || engine.permissionSuspected {
+        if engine.state == .permissionDenied {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)

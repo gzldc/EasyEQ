@@ -29,5 +29,6 @@
 "device.output" = "Output: %@";
 "permission.title" = "EasyEQ needs permission to process system audio";
 "permission.open" = "Open System Settings";
+"permission.check" = "No effect? Check permission";
 "settings.language" = "Language";
 "settings.system" = "Follow System";

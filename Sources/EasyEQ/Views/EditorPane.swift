@@ -1,3 +1,4 @@
+import AppKit
 import EasyEQAudio
 import EasyEQCore
 import SwiftUI
@@ -88,11 +89,21 @@ private struct DeviceFooter: View {
     @EnvironmentObject private var localizer: Localizer
 
     var body: some View {
-        Text(text)
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .truncationMode(.middle)
+        HStack(spacing: 10) {
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            // Low-key hint: silence while other apps hold output streams is also the normal idle state.
+            if engine.permissionSuspected && engine.state != .permissionDenied {
+                Button(localizer.t("permission.check")) {
+                    NSWorkspace.shared.open(PermissionBanner.settingsURL)
+                }
+                .buttonStyle(.link)
+                .font(.callout)
+            }
+        }
     }
 
     private var text: String {

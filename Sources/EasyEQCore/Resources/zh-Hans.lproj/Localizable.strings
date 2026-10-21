@@ -29,5 +29,6 @@
 "device.output" = "输出设备：%@";
 "permission.title" = "简易均衡器需要“系统音频录制”权限才能处理声音";
 "permission.open" = "打开系统设置";
+"permission.check" = "没效果？检查权限";
 "settings.language" = "语言";
 "settings.system" = "跟随系统";
