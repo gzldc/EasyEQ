@@ -110,14 +110,17 @@ final class RenderContext: @unchecked Sendable {
     static let maxChannels = 8
 
     private let processor: EQProcessor
+    /// How many buffers at the END of the aggregate's input list belong to the tap (see `EngineLogic`).
+    private let tapBufferCount: Int
     private let scratch: UnsafeMutablePointer<Float>
     private let list: UnsafeMutableAudioBufferListPointer
     /// [0] = IOProc callbacks so far, [1] = 1 once a non-zero input sample was seen.
     /// Written by the audio thread, read by the main thread; a stale read is harmless.
     private let counters: UnsafeMutablePointer<UInt32>
 
-    init(processor: EQProcessor) {
+    init(processor: EQProcessor, tapBufferCount: Int) {
         self.processor = processor
+        self.tapBufferCount = tapBufferCount
         scratch = .allocate(capacity: Self.maxChannels * Self.maxFrames)
         scratch.initialize(repeating: 0, count: Self.maxChannels * Self.maxFrames)
         list = AudioBufferList.allocate(maximumBuffers: Self.maxChannels)
@@ -149,12 +152,14 @@ final class RenderContext: @unchecked Sendable {
         let inList = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
         let floatSize = MemoryLayout<Float>.size
 
-        func frames(_ list: UnsafeMutableAudioBufferListPointer) -> Int {
-            guard list.count > 0, list[0].mNumberChannels > 0 else { return 0 }
-            return Int(list[0].mDataByteSize) / (Int(list[0].mNumberChannels) * floatSize)
+        func frames(_ list: UnsafeMutableAudioBufferListPointer, first: Int) -> Int {
+            guard first >= 0, first < list.count, list[first].mNumberChannels > 0 else { return 0 }
+            return Int(list[first].mDataByteSize) / (Int(list[first].mNumberChannels) * floatSize)
         }
-        let outFrames = frames(outList)
-        let total = min(frames(inList), outFrames)
+        // Only the tap's buffers are audio to process; any buffers before them are the sub-device's own inputs.
+        let firstTap = inList.count - tapBufferCount
+        let outFrames = frames(outList, first: 0)
+        let total = min(frames(inList, first: firstTap), outFrames)
         let checkSignal = counters[1] == 0
 
         var done = 0
@@ -163,7 +168,7 @@ final class RenderContext: @unchecked Sendable {
 
             // Input -> planar scratch.
             var channels = 0
-            for b in 0..<inList.count {
+            for b in firstTap..<inList.count {
                 let buffer = inList[b]
                 guard let data = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
                 let nc = Int(buffer.mNumberChannels)

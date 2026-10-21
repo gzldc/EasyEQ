@@ -5,6 +5,9 @@ import os
 
 public enum EngineState: Equatable, Sendable {
     case stopped
+    /// Building the pipeline, or waiting for the system-audio permission prompt to be answered.
+    /// System audio is muted while the tap exists, so UI should make this visible.
+    case starting
     case running(deviceName: String)
     case permissionDenied
     case failed(String)
@@ -15,16 +18,23 @@ public enum EngineState: Equatable, Sendable {
 @MainActor
 public final class SystemAudioEngine: ObservableObject {
     @Published public private(set) var state: EngineState = .stopped
+    /// True while the tap has delivered only zeros even though other processes report producing output.
+    /// A hint only (a paused tab also holds an output stream open); the pipeline keeps running and is rebuilt
+    /// when the app is next activated.
+    @Published public private(set) var permissionSuspected = false
     public let processor: EQProcessor
 
     private static let bufferFrames: UInt32 = 256
-    private static let permissionTimeout = 3   // seconds of exact zeros while others play => denied
+    /// Core Audio teardown that may block (device stop while the permission prompt is open) runs here.
+    private static let teardownQueue = DispatchQueue(label: "app.easyeq.EasyEQ.teardown", qos: .userInitiated)
 
     private struct Session {
         var tapID = AudioObjectID(kAudioObjectUnknown)
         var aggregateID = AudioObjectID(kAudioObjectUnknown)
         var procID: AudioDeviceIOProcID?
         var started = false
+        /// `AudioDeviceStart` has been issued but has not returned yet (it blocks while the prompt is open).
+        var startPending = false
         var deviceID = AudioDeviceID(kAudioObjectUnknown)
         var context: RenderContext?
         var rateListener: AudioObjectPropertyListenerBlock?
@@ -34,6 +44,16 @@ public final class SystemAudioEngine: ObservableObject {
     private struct SendableDevice: @unchecked Sendable {
         let aggregateID: AudioObjectID
         let procID: AudioDeviceIOProcID?
+    }
+
+    /// Everything `destroy` needs, detached from the main-actor session so it can run on any thread.
+    private struct Teardown: @unchecked Sendable {
+        var tapID: AudioObjectID
+        var aggregateID: AudioObjectID
+        var procID: AudioDeviceIOProcID?
+        var started: Bool
+        var startPending: Bool
+        var context: RenderContext?   // kept alive until the IOProc is gone
     }
 
     private var session = Session()
@@ -50,8 +70,8 @@ public final class SystemAudioEngine: ObservableObject {
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.wantsRunning, self.state == .permissionDenied else { return }
-                audioLog.info("App became active while permission was denied; retrying")
+                guard let self, self.wantsRunning, self.state == .permissionDenied || self.permissionSuspected else { return }
+                audioLog.info("App became active while permission was denied or suspect; rebuilding")
                 self.build()
             }
         }
@@ -88,16 +108,13 @@ public final class SystemAudioEngine: ObservableObject {
     private func build() {
         teardown()
         guard wantsRunning else { return }
+        state = .starting
         do {
             try buildPipeline()
         } catch let error as CoreAudioError {
             teardown()
-            if error.call.hasPrefix("AudioHardwareCreateProcessTap") {
-                audioLog.error("Tap creation failed; treating as permission denied")
-                state = .permissionDenied
-            } else {
-                state = .failed(error.description)
-            }
+            state = EngineLogic.state(forFailedCall: error.call, description: error.description)
+            if state == .permissionDenied { audioLog.error("\(error.call, privacy: .public) failed; treating as permission denied") }
         } catch {
             teardown()
             audioLog.error("Unexpected error: \(String(describing: error), privacy: .public)")
@@ -169,12 +186,23 @@ public final class SystemAudioEngine: ObservableObject {
         let actualFrames = try? getProperty(
             aggregateID, address(kAudioDevicePropertyBufferFrameSize), initial: UInt32(0))
         audioLog.info("Aggregate buffer size: \(actualFrames ?? 0) frames")
-        logStreamConfiguration(aggregateID, scope: kAudioObjectPropertyScopeInput, label: "input")
-        logStreamConfiguration(aggregateID, scope: kAudioObjectPropertyScopeOutput, label: "output")
+        let inputChannels = streamChannels(aggregateID, scope: kAudioObjectPropertyScopeInput)
+        let outputChannels = streamChannels(aggregateID, scope: kAudioObjectPropertyScopeOutput)
+        audioLog.info("Aggregate input buffers (channels each): \(inputChannels.map(String.init).joined(separator: ","), privacy: .public)")
+        audioLog.info("Aggregate output buffers (channels each): \(outputChannels.map(String.init).joined(separator: ","), privacy: .public)")
+        // The output device's own input streams (headset mic, interface inputs) precede the tap's in the input
+        // list; only the tap's trailing buffers may be processed. Refuse layouts we cannot identify.
+        guard let tapBufferCount = EngineLogic.tapBufferCount(
+            bufferChannels: inputChannels, tapChannels: Int(tapFormat.mChannelsPerFrame))
+        else {
+            audioLog.error("Unexpected aggregate input layout \(inputChannels, privacy: .public) for a \(tapFormat.mChannelsPerFrame)-channel tap")
+            throw CoreAudioError(call: "aggregate input layout check", status: kAudioDeviceUnsupportedFormatError)
+        }
+        audioLog.info("Tap uses the last \(tapBufferCount) input buffer(s)")
 
         // 5. IOProc.
         processor.setSampleRate(rate)
-        let context = RenderContext(processor: processor)
+        let context = RenderContext(processor: processor, tapBufferCount: tapBufferCount)
         session.context = context
         var procID: AudioDeviceIOProcID?
         try check(
@@ -182,6 +210,7 @@ public final class SystemAudioEngine: ObservableObject {
             "AudioDeviceCreateIOProcIDWithBlock")
         session.procID = procID
         session.started = true   // so teardown always stops the device, even while the start is still pending
+        session.startPending = true
 
         // AudioDeviceStart blocks while the system-audio permission prompt is on screen, so keep it off the
         // main thread. `generation` discards the result if the pipeline was torn down in the meantime.
@@ -195,11 +224,12 @@ public final class SystemAudioEngine: ObservableObject {
 
     private func finishStart(generation: Int, status: OSStatus, deviceName: String) {
         guard generation == buildGeneration, wantsRunning else { return }
+        session.startPending = false
         if status != noErr {
             let error = CoreAudioError(call: "AudioDeviceStart", status: status)
             audioLog.error("\(error.description, privacy: .public)")
             teardown()
-            state = .failed(error.description)
+            state = EngineLogic.state(forFailedCall: error.call, description: error.description)
             return
         }
 
@@ -218,49 +248,66 @@ public final class SystemAudioEngine: ObservableObject {
         startMonitoring()
     }
 
-    /// Stop device -> destroy IOProc -> destroy aggregate -> destroy tap. Never throws; logs each failure.
+    /// Detaches the current session and destroys it. Normally runs synchronously (stop device -> destroy IOProc ->
+    /// destroy aggregate -> destroy tap) so `applicationWillTerminate` leaves nothing behind. While the permission
+    /// prompt is still pending, stopping the device can block for as long as the prompt is open, so that case
+    /// runs on a background queue instead, destroying the tap first so system audio un-mutes immediately.
     private func teardown() {
         buildGeneration += 1
         monitorTask?.cancel()
         monitorTask = nil
-        var s = session
+        permissionSuspected = false
+        let s = session
         session = Session()
 
         if let listener = s.rateListener {
             var rateAddress = address(kAudioDevicePropertyNominalSampleRate)
             AudioObjectRemovePropertyListenerBlock(s.deviceID, &rateAddress, .main, listener)
         }
-        if s.started {
-            logFailure(AudioDeviceStop(s.aggregateID, s.procID), "AudioDeviceStop")
-            s.started = false
+        let work = Teardown(
+            tapID: s.tapID, aggregateID: s.aggregateID, procID: s.procID,
+            started: s.started, startPending: s.startPending, context: s.context)
+        if work.startPending {
+            audioLog.info("Teardown while the start is still pending; destroying off the main thread")
+            Self.teardownQueue.async { Self.destroy(work) }
+        } else {
+            Self.destroy(work)
         }
-        if let procID = s.procID {
-            logFailure(AudioDeviceDestroyIOProcID(s.aggregateID, procID), "AudioDeviceDestroyIOProcID")
+    }
+
+    nonisolated private static func destroy(_ t: Teardown) {
+        func log(_ status: OSStatus, _ call: String) {
+            if status != noErr { audioLog.error("\(CoreAudioError(call: call, status: status).description, privacy: .public)") }
         }
-        if s.aggregateID != AudioObjectID(kAudioObjectUnknown) {
-            logFailure(AudioHardwareDestroyAggregateDevice(s.aggregateID), "AudioHardwareDestroyAggregateDevice")
-        }
-        if s.tapID != AudioObjectID(kAudioObjectUnknown) {
-            logFailure(AudioHardwareDestroyProcessTap(s.tapID), "AudioHardwareDestroyProcessTap")
+        func destroyTap() {
+            guard t.tapID != AudioObjectID(kAudioObjectUnknown) else { return }
+            log(AudioHardwareDestroyProcessTap(t.tapID), "AudioHardwareDestroyProcessTap")
             audioLog.info("Destroyed process tap; system audio is un-muted")
         }
-        s.context = nil
+        if t.startPending { destroyTap() }
+        if t.started { log(AudioDeviceStop(t.aggregateID, t.procID), "AudioDeviceStop") }
+        if let procID = t.procID { log(AudioDeviceDestroyIOProcID(t.aggregateID, procID), "AudioDeviceDestroyIOProcID") }
+        if t.aggregateID != AudioObjectID(kAudioObjectUnknown) {
+            log(AudioHardwareDestroyAggregateDevice(t.aggregateID), "AudioHardwareDestroyAggregateDevice")
+        }
+        if !t.startPending { destroyTap() }
+        withExtendedLifetime(t.context) {}
     }
 
     private func logFailure(_ status: OSStatus, _ call: String) {
         if status != noErr { audioLog.error("\(CoreAudioError(call: call, status: status).description, privacy: .public)") }
     }
 
-    private func logStreamConfiguration(_ device: AudioObjectID, scope: AudioObjectPropertyScope, label: String) {
+    /// Channel count of each buffer in the device's stream configuration for `scope`.
+    private func streamChannels(_ device: AudioObjectID, scope: AudioObjectPropertyScope) -> [Int] {
         var addr = address(kAudioDevicePropertyStreamConfiguration, scope: scope)
         var size: UInt32 = 0
-        guard AudioObjectGetPropertyDataSize(device, &addr, 0, nil, &size) == noErr, size > 0 else { return }
+        guard AudioObjectGetPropertyDataSize(device, &addr, 0, nil, &size) == noErr, size > 0 else { return [] }
         let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
         defer { raw.deallocate() }
-        guard AudioObjectGetPropertyData(device, &addr, 0, nil, &size, raw) == noErr else { return }
+        guard AudioObjectGetPropertyData(device, &addr, 0, nil, &size, raw) == noErr else { return [] }
         let list = UnsafeMutableAudioBufferListPointer(raw.assumingMemoryBound(to: AudioBufferList.self))
-        let channels = list.map { Int($0.mNumberChannels) }
-        audioLog.info("Aggregate \(label, privacy: .public) buffers (channels each): \(channels.map(String.init).joined(separator: ","), privacy: .public)")
+        return list.map { Int($0.mNumberChannels) }
     }
 
     // MARK: - Device / rate changes
@@ -302,33 +349,31 @@ public final class SystemAudioEngine: ObservableObject {
         }
     }
 
-    // MARK: - Permission detection
+    // MARK: - Permission hint
 
-    /// A denied tap delivers exact zeros. If other processes are producing audio yet we only see zeros for
-    /// `permissionTimeout` seconds, assume denied: tear down (un-muting the system) and wait for the app to be
-    /// re-activated. Stops checking as soon as any non-zero sample arrives.
+    /// A denied tap delivers exact zeros, but so does a working tap while a process plays silence. So this only
+    /// publishes `permissionSuspected` after sustained zeros with other output running, and clears it as soon as
+    /// any non-zero sample arrives. It never tears the pipeline down.
     private func startMonitoring() {
         monitorTask?.cancel()
         guard let context = session.context else { return }
         let own = session.ownProcess
         monitorTask = Task { @MainActor [weak self] in
-            var zeroSeconds = 0
+            var hint = PermissionHint()
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard !Task.isCancelled, let self else { return }
+                let suspected = hint.observe(
+                    sawSignal: context.sawSignal, callbacks: context.callbackCount,
+                    othersOutputting: otherProcessIsOutputting(excluding: own))
+                if suspected != self.permissionSuspected {
+                    self.permissionSuspected = suspected
+                    if suspected {
+                        audioLog.error("Tap delivered only zeros for \(hint.zeroSeconds) s while other audio output is running; permission may be missing")
+                    }
+                }
                 if context.sawSignal {
                     audioLog.info("Tap is delivering audio (\(context.callbackCount) callbacks so far)")
-                    return
-                }
-                if context.callbackCount > 0, otherProcessIsOutputting(excluding: own) {
-                    zeroSeconds += 1
-                } else {
-                    zeroSeconds = 0
-                }
-                if zeroSeconds >= Self.permissionTimeout {
-                    audioLog.error("Tap delivered only zeros for \(zeroSeconds) s while other audio was playing; assuming permission denied")
-                    self.teardown()
-                    self.state = .permissionDenied
                     return
                 }
             }
