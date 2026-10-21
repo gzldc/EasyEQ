@@ -189,6 +189,28 @@ private func settings(_ layout: BandLayout, _ gains: [Int: Double]) -> EQSetting
     #expect((out.map { abs($0) }.max() ?? 0) <= 1.0)
 }
 
+@Test func layoutChangeMidStreamDoesNotClick() {
+    let sr = 48_000.0
+    let p = EQProcessor(sampleRate: sr, channelCount: 1)
+    let before = settings(.ten, [5: 9, 4: -6, 6: 6])      // 1 kHz band boosted
+    var gains31 = [Double](repeating: 0, count: 31)
+    for i in 0..<31 { gains31[i] = (i % 2 == 0) ? 7 : -5 }
+    let after = EQSettings(layout: .thirtyOne, gains: gains31)
+    let input = sine(hz: 1000, sr: sr, seconds: 1, amp: 0.5)
+    p.update(settings: before, enabled: true)
+    let out = run(p, input: [input], beforeBlock: { block in
+        if block == 40 { p.update(settings: after, enabled: true) }
+    })[0]
+    #expect(out.allSatisfy { $0.isFinite })
+    var maxStep: Float = 0
+    for n in 1..<out.count { maxStep = max(maxStep, abs(out[n] - out[n - 1])) }
+    #expect(maxStep < 0.1, "max sample-to-sample step \(maxStep)")
+    // The new layout is really in effect afterwards: the 1 kHz response matches the new curve.
+    let expected = after.responseDB(at: 1000, sampleRate: sr) + after.autoPreampDB(sampleRate: sr)
+    let measured = tailRMSDB(out) - tailRMSDB(input)
+    #expect(abs(measured - expected) <= 0.5)
+}
+
 @Test func channelsAreIndependentAndExtraChannelsPassThrough() {
     let channels = 10 // the processor handles max(8, channelCount) = 8 channels
     let p = EQProcessor(sampleRate: 48_000, channelCount: 2)

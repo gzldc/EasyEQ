@@ -21,6 +21,10 @@ public final class EQProcessor: @unchecked Sendable {
     private static let limiterThreshold = 0.8912509381337456 // -1 dBFS
     private static let limiterReleaseSeconds = 0.05
     private static let snapDB = 0.001
+    private static let fadeSeconds = 0.008       // fade-out and fade-in around a band-count (layout) swap
+
+    /// Layout swaps go out -> swap -> in so the filter state reset and the jump to new gains happen at silence.
+    private enum FadePhase { case idle, out, swap, `in` }
 
     private let maxChannels: Int
 
@@ -59,6 +63,9 @@ public final class EQProcessor: @unchecked Sendable {
     private var targetPreampDB = 0.0
     private var currentPreampDB = 0.0
     private var preampLinear = 1.0
+    private var fadePhase = FadePhase.idle
+    private var fadeGain = 1.0      // output gain applied after the limiter; 1 except around a layout swap
+    private var fadeStep = 0.0      // per-sample change while fading (negative for .out)
 
     public init(sampleRate: Double, channelCount: Int) {
         let maxBands = Self.maxBands
@@ -146,11 +153,14 @@ public final class EQProcessor: @unchecked Sendable {
     }
 
     /// Picks up new targets if the control thread is not mid-publish; otherwise keeps the old ones.
+    /// A band-count change is not applied directly: the first sighting starts a fade-out (`.out`) and leaves the
+    /// slot unconsumed; once the output is silent (`.swap`) this runs again and performs the swap.
     private func pullPending() {
+        if fadePhase == .out { return }   // finish fading out before looking at anything new
         guard os_unfair_lock_trylock(slotLock) else { return }
         defer { os_unfair_lock_unlock(slotLock) }
-        guard slotGeneration != seenGeneration else { return }
-        seenGeneration = slotGeneration
+        let swapping = fadePhase == .swap
+        guard swapping || slotGeneration != seenGeneration else { return }
 
         let firstUpdate = bandCount == 0
         if slotSampleRate != sampleRate {
@@ -158,8 +168,14 @@ public final class EQProcessor: @unchecked Sendable {
             updateRateConstants()
             markAllDirty()
         }
+        var swappedLayout = false
         if slotBandCount != bandCount {
-            // Layout change: reset filter states and jump to the new gains (a brief glitch is acceptable).
+            if !firstUpdate && !swapping {
+                fadePhase = .out
+                fadeStep = -1 / (Self.fadeSeconds * sampleRate)
+                return
+            }
+            // Output is silent (or nothing was playing yet): reset filter states and jump to the new gains.
             bandCount = slotBandCount
             state.update(repeating: 0, count: maxChannels * Self.maxBands * 2)
             for i in 0..<bandCount {
@@ -169,12 +185,18 @@ public final class EQProcessor: @unchecked Sendable {
             }
             for i in bandCount..<Self.maxBands { targetGains[i] = 0; currentGains[i] = 0 }
             markAllDirty()
+            swappedLayout = true
         } else {
             for i in 0..<bandCount { targetGains[i] = slotGains[i] }
         }
+        seenGeneration = slotGeneration
+        if swapping {
+            fadePhase = .in
+            fadeStep = 1 / (Self.fadeSeconds * sampleRate)
+        }
         if slotQ != q { q = slotQ; markAllDirty() }
         targetPreampDB = slotPreampDB
-        if firstUpdate {
+        if firstUpdate || swappedLayout {
             currentPreampDB = targetPreampDB
             preampLinear = pow(10, currentPreampDB / 20)
         }
@@ -246,7 +268,7 @@ public final class EQProcessor: @unchecked Sendable {
     public func process(_ buffers: UnsafeMutableAudioBufferListPointer, frameCount: Int) {
         pullPending()
         if bandCount == 0 { return }
-        if isSettled() {
+        if fadePhase == .idle && isSettled() {
             resetLimiters()
             return
         }
@@ -254,16 +276,32 @@ public final class EQProcessor: @unchecked Sendable {
         let channelTotal = min(buffers.count, maxChannels)
         var start = 0
         while start < frameCount {
+            if fadePhase == .swap { pullPending() }   // stays silent until the swap could be taken
             let n = min(Self.blockStep, frameCount - start)
             let preStart = preampLinear
             let preEnd = advanceSmoothing()
             preampLinear = preEnd
-            if isSettled() {   // the ramp just reached 0 dB: bypass limiter and clamp from here on
+            let settled = isSettled()
+            if settled && fadePhase == .idle {   // the ramp just reached 0 dB: bypass limiter and clamp from here on
                 resetLimiters()
                 start += n
                 continue
             }
             let preStep = (preEnd - preStart) / Double(n)
+
+            let fadeStart: Double
+            var fadeEnd: Double
+            switch fadePhase {
+            case .idle: fadeStart = 1; fadeEnd = 1
+            case .swap: fadeStart = 0; fadeEnd = 0
+            case .out:
+                fadeStart = fadeGain
+                fadeEnd = max(0, fadeStart + fadeStep * Double(n))
+            case .in:
+                fadeStart = fadeGain
+                fadeEnd = min(1, fadeStart + fadeStep * Double(n))
+            }
+            let fadePerSample = (fadeEnd - fadeStart) / Double(n)
 
             for c in 0..<channelTotal {
                 let buffer = buffers[c]
@@ -271,23 +309,38 @@ public final class EQProcessor: @unchecked Sendable {
                 let available = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size
                 if start >= available { continue }
                 let count = min(n, available - start)
-                processChannel(
-                    c, data.assumingMemoryBound(to: Float.self) + start,
-                    count: count, preamp: preStart, preampStep: preStep
-                )
+                let samples = data.assumingMemoryBound(to: Float.self) + start
+                if settled {   // nothing to filter or limit: only the fade applies
+                    var f = fadeStart
+                    for i in 0..<count { samples[i] = Float(Double(samples[i]) * f); f += fadePerSample }
+                } else {
+                    processChannel(
+                        c, samples, count: count, preamp: preStart, preampStep: preStep,
+                        fade: fadeStart, fadeStep: fadePerSample
+                    )
+                }
             }
             start += n
+
+            fadeGain = fadeEnd
+            if fadePhase == .out && fadeEnd <= 0 {
+                fadePhase = .swap
+            } else if fadePhase == .in && fadeEnd >= 1 {
+                fadePhase = .idle
+                fadeGain = 1
+            }
         }
     }
 
     private func processChannel(
         _ channel: Int, _ samples: UnsafeMutablePointer<Float>,
-        count: Int, preamp preStart: Double, preampStep: Double
+        count: Int, preamp preStart: Double, preampStep: Double, fade fadeStart: Double, fadeStep: Double
     ) {
         let channelState = state + channel * Self.maxBands * 2
         let threshold = Self.limiterThreshold
         let release = limiterRelease
         var pre = preStart
+        var fade = fadeStart
         var lg = limiterGain[channel]
 
         for i in 0..<count {
@@ -320,7 +373,8 @@ public final class EQProcessor: @unchecked Sendable {
                 lg = needed + release * (lg - needed)
                 if needed == 1, lg > 0.999_99 { lg = 1 }
             }
-            let out = v * lg
+            let out = v * lg * fade
+            fade += fadeStep
             samples[i] = Float(min(1, max(-1, out)))
         }
         limiterGain[channel] = lg
