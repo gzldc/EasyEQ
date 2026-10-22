@@ -37,6 +37,8 @@ public final class SystemAudioEngine: ObservableObject {
     private var rebuildTask: Task<Void, Never>?
     private var monitorTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
+    /// Armed when the pipeline announces a teardown after device loss; cancelled when that teardown reports back.
+    private var teardownWatchdogTask: Task<Void, Never>?
     private var activeObserver: NSObjectProtocol?
 
     public init() {
@@ -55,7 +57,7 @@ public final class SystemAudioEngine: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self, self.wantsRunning, self.needsRebuildOnActivation else { return }
                 audioLog.info("App became active while permission was denied, suspect or the engine had failed; rebuilding")
-                self.build()
+                self.build(reinstallListeners: true)
             }
         }
     }
@@ -81,7 +83,7 @@ public final class SystemAudioEngine: ObservableObject {
         audioLog.info("retry requested")
         rebuildTask?.cancel()
         rebuildTask = nil
-        build()
+        build(reinstallListeners: true)   // the audio service may have been restarted (repair): listeners can be gone
     }
 
     private var needsRebuildOnActivation: Bool {
@@ -117,6 +119,8 @@ public final class SystemAudioEngine: ObservableObject {
         monitorTask = nil
         watchdogTask?.cancel()
         watchdogTask = nil
+        teardownWatchdogTask?.cancel()
+        teardownWatchdogTask = nil
         permissionSuspected = false
         setUnresponsive(.stopped)
         pipeline.gate.advance()   // results of any build issued earlier are now stale
@@ -124,8 +128,10 @@ public final class SystemAudioEngine: ObservableObject {
         state = .stopped
     }
 
-    private func build() {
+    private func build(reinstallListeners: Bool = false) {
         guard wantsRunning else { return }
+        teardownWatchdogTask?.cancel()
+        teardownWatchdogTask = nil
         monitorTask?.cancel()
         monitorTask = nil
         permissionSuspected = false
@@ -133,7 +139,7 @@ public final class SystemAudioEngine: ObservableObject {
         state = .starting
         let epoch = pipeline.gate.advance()
         startWatchdog(epoch: epoch)
-        pipeline.build(epoch: epoch)
+        pipeline.build(epoch: epoch, reinstallListeners: reinstallListeners)
     }
 
     /// If the build phase has not reported back in time (a wedged `coreaudiod`), say so instead of showing
@@ -141,13 +147,24 @@ public final class SystemAudioEngine: ObservableObject {
     /// reports `.awaitingStart` before `AudioDeviceStart`, which may wait on the permission prompt as long as it likes.
     private func startWatchdog(epoch: Int) {
         watchdogTask?.cancel()
-        watchdogTask = Task { @MainActor [weak self] in
+        watchdogTask = makeWatchdog(epoch: epoch, what: "build")
+    }
+
+    /// Same watchdog for the teardown after a device loss: `.starting` is published at once, and if the pipeline
+    /// never reports that the teardown is over, the failure (with Repair) shows instead of a stale state.
+    private func startTeardownWatchdog(epoch: Int) {
+        teardownWatchdogTask?.cancel()
+        teardownWatchdogTask = makeWatchdog(epoch: epoch, what: "teardown")
+    }
+
+    private func makeWatchdog(epoch: Int, what: String) -> Task<Void, Never> {
+        Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: EngineLogic.buildWatchdogSeconds * 1_000_000_000)
             guard !Task.isCancelled, let self else { return }
             guard EngineLogic.watchdogShouldFail(
                 state: self.state, epochIsCurrent: self.pipeline.gate.isCurrent(epoch), wantsRunning: self.wantsRunning)
             else { return }
-            audioLog.error("Audio build did not finish within \(EngineLogic.buildWatchdogSeconds) s; Core Audio may be unresponsive")
+            audioLog.error("Audio \(what, privacy: .public) did not finish within \(EngineLogic.buildWatchdogSeconds) s; Core Audio may be unresponsive")
             self.state = .failed("Core Audio did not respond within \(EngineLogic.buildWatchdogSeconds) s")
             self.setUnresponsive(.watchdogFired)
         }
@@ -166,6 +183,12 @@ public final class SystemAudioEngine: ObservableObject {
         case .failed(let failure):
             watchdogTask?.cancel()
             watchdogTask = nil
+            // The late error of a build the watchdog already gave up on (a repair makes the stuck call return one):
+            // keep the unresponsive failure and its Repair button until a retry actually starts.
+            if coreAudioUnresponsive {
+                audioLog.info("Ignoring the late failure of the build that timed out")
+                return
+            }
             state = failure
             setUnresponsive(.otherFailure)
         case .running(let deviceName, let context, let own):
@@ -178,7 +201,7 @@ public final class SystemAudioEngine: ObservableObject {
     }
 
     private func setUnresponsive(_ event: EngineLogic.UnresponsiveEvent) {
-        let value = EngineLogic.coreAudioUnresponsive(after: event)
+        let value = EngineLogic.coreAudioUnresponsive(after: event, previous: coreAudioUnresponsive)
         if value != coreAudioUnresponsive { coreAudioUnresponsive = value }
     }
 
@@ -189,18 +212,34 @@ public final class SystemAudioEngine: ObservableObject {
         guard wantsRunning else { return }
         switch change {
         case .rebuild:
+            // A teardown that led here has reported back.
+            teardownWatchdogTask?.cancel()
+            teardownWatchdogTask = nil
             scheduleRebuild()
-        case .deviceLost(let epoch):
-            // The pipeline is already gone (torn down on its queue). A reply that crosses a newer build is stale.
+        case .teardownStarted(let epoch):
             guard pipeline.gate.isCurrent(epoch) else { return }
-            audioLog.info("Output device lost; waiting for it to come back")
-            rebuildTask?.cancel()
-            rebuildTask = nil
+            audioLog.info("Output device looks lost; pipeline is being torn down")
             monitorTask?.cancel()
             monitorTask = nil
             permissionSuspected = false
-            setUnresponsive(.buildStarted)
             state = .starting
+            startTeardownWatchdog(epoch: epoch)
+        case .deviceLost(let epoch):
+            // The teardown is over. A reply that crosses a newer build is stale. A queued rebuild is left alone:
+            // it either finds a usable output or fails visibly, and the pipeline keeps rechecking meanwhile.
+            guard pipeline.gate.isCurrent(epoch) else { return }
+            audioLog.info("Output device lost; waiting for it to come back")
+            teardownWatchdogTask?.cancel()
+            teardownWatchdogTask = nil
+            monitorTask?.cancel()
+            monitorTask = nil
+            permissionSuspected = false
+            setUnresponsive(.pipelineResponded)   // also recovers from a teardown the watchdog had given up on
+            state = .starting
+        case .gaveUp(let epoch):
+            guard pipeline.gate.isCurrent(epoch), state == .starting else { return }
+            audioLog.error("Giving up on the lost output device")
+            state = .failed("The output device did not come back")
         }
     }
 

@@ -91,14 +91,51 @@ enum EngineLogic {
         return .none
     }
 
-    /// Whether the "Core Audio is not responding" state (watchdog timeout) is showing. Only the watchdog sets it;
-    /// the next build, any sign of life from the pipeline, any other failure, and a stop all clear it.
+    /// Why the pipeline looked at the devices.
+    enum DeviceEvent: String, Sendable {
+        case defaultOutput, deviceList, outputAlive, sampleRate, serviceRestarted
+    }
+
+    /// Events that may mean the output device is dying. Answering them needs queries to that device's driver, which
+    /// can block for 30 s on a hung driver while the tap keeps system audio muted, so the pipeline is destroyed first
+    /// (tap first, system audio comes back) and the facts are checked afterwards. A genuine rate change rebuilds
+    /// anyway; a spurious event just costs one rebuild.
+    static func teardownBeforeQuerying(_ event: DeviceEvent) -> Bool {
+        event == .outputAlive || event == .sampleRate
+    }
+
+    /// How often a lost output device is looked for, and how long before the engine gives up and shows a failure.
+    static let waitRecheckSeconds: TimeInterval = 2
+    static let waitGiveUpSeconds: TimeInterval = 15
+
+    enum WaitDecision: Equatable, Sendable { case rebuild, keepWaiting, giveUp }
+
+    /// What to do on a periodic recheck while waiting for a lost output device to come back.
+    static func waitDecision(elapsed: TimeInterval, defaultUsable: Bool) -> WaitDecision {
+        if defaultUsable { return .rebuild }
+        return elapsed >= waitGiveUpSeconds ? .giveUp : .keepWaiting
+    }
+
+    /// Whether `device` still counts as present given the (possibly failed) device-list query. An unknown list
+    /// (`nil`: the query failed) never proves a device gone.
+    static func isListed(_ device: UInt32, in list: [UInt32]?) -> Bool {
+        list?.contains(device) ?? true
+    }
+
+    /// Whether the "Core Audio is not responding" state (watchdog timeout) is showing. Only a watchdog sets it.
+    /// The next build, any sign of life from the pipeline and a stop clear it. A plain failure leaves it as it
+    /// is: it can only be the late result of the very build that timed out (a repair restarting `coreaudiod` makes
+    /// the stuck call return an error), and clearing it would take the Repair button away before the retry starts.
     enum UnresponsiveEvent: Sendable {
         case watchdogFired, buildStarted, pipelineResponded, otherFailure, stopped
     }
 
-    static func coreAudioUnresponsive(after event: UnresponsiveEvent) -> Bool {
-        event == .watchdogFired
+    static func coreAudioUnresponsive(after event: UnresponsiveEvent, previous: Bool = false) -> Bool {
+        switch event {
+        case .watchdogFired: return true
+        case .otherFailure: return previous
+        case .buildStarted, .pipelineResponded, .stopped: return false
+        }
     }
 
     /// Calls that the system gates behind the audio-capture permission. Their failure means "permission".

@@ -121,4 +121,46 @@ struct EngineLogicTests {
             #expect(!EngineLogic.coreAudioUnresponsive(after: event))
         }
     }
+
+    @Test func sampleRateToleranceBoundary() {
+        // Exactly the tolerance apart is still the same rate; just beyond it is a change.
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "A", newRate: 48_000.5, outputAlive: true) == .none)
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "A", newRate: 47_999.5, outputAlive: true) == .none)
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "A", newRate: 48_000.51, outputAlive: true) == .rebuild)
+    }
+
+    @Test func dyingDeviceEventsTearDownBeforeAnyQuery() {
+        #expect(EngineLogic.teardownBeforeQuerying(.outputAlive))
+        #expect(EngineLogic.teardownBeforeQuerying(.sampleRate))
+        #expect(!EngineLogic.teardownBeforeQuerying(.deviceList))
+        #expect(!EngineLogic.teardownBeforeQuerying(.defaultOutput))
+        #expect(!EngineLogic.teardownBeforeQuerying(.serviceRestarted))
+    }
+
+    @Test func unknownDeviceListNeverProvesADeviceGone() {
+        #expect(EngineLogic.isListed(5, in: [1, 5]))
+        #expect(!EngineLogic.isListed(5, in: [1, 2]))
+        #expect(!EngineLogic.isListed(5, in: []))
+        #expect(EngineLogic.isListed(5, in: nil))   // query failed: unknown
+    }
+
+    @Test func waitingForALostDevice() {
+        // A usable default rebuilds at any time, even after the give-up point.
+        #expect(EngineLogic.waitDecision(elapsed: 0, defaultUsable: true) == .rebuild)
+        #expect(EngineLogic.waitDecision(elapsed: 100, defaultUsable: true) == .rebuild)
+        #expect(EngineLogic.waitDecision(elapsed: 2, defaultUsable: false) == .keepWaiting)
+        #expect(EngineLogic.waitDecision(elapsed: EngineLogic.waitGiveUpSeconds - 0.1, defaultUsable: false) == .keepWaiting)
+        #expect(EngineLogic.waitDecision(elapsed: EngineLogic.waitGiveUpSeconds, defaultUsable: false) == .giveUp)
+    }
+
+    @Test func lateFailureKeepsTheUnresponsiveFlag() {
+        // The stuck build's error arriving after the watchdog (e.g. once a repair restarted coreaudiod).
+        #expect(EngineLogic.coreAudioUnresponsive(after: .otherFailure, previous: true))
+        #expect(!EngineLogic.coreAudioUnresponsive(after: .otherFailure, previous: false))
+        // Only a new build, a sign of life or a stop clears it.
+        for event in [EngineLogic.UnresponsiveEvent.buildStarted, .pipelineResponded, .stopped] {
+            #expect(!EngineLogic.coreAudioUnresponsive(after: event, previous: true))
+        }
+        #expect(EngineLogic.coreAudioUnresponsive(after: .watchdogFired, previous: false))
+    }
 }

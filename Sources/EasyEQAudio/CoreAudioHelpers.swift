@@ -72,14 +72,16 @@ func defaultOutputDeviceID() throws -> AudioDeviceID {
     return id
 }
 
-/// IDs of all devices the system currently lists (empty if the query fails). Quiet: a failure is data here.
-func listedDeviceIDs() -> [AudioDeviceID] {
+/// IDs of all devices the system currently lists, or `nil` if the query failed (unknown, which is not the same as
+/// "no devices"). Quiet: a failure is data here.
+func listedDeviceIDs() -> [AudioDeviceID]? {
     var addr = address(kAudioHardwarePropertyDevices)
     var size: UInt32 = 0
     let system = AudioObjectID(kAudioObjectSystemObject)
-    guard AudioObjectGetPropertyDataSize(system, &addr, 0, nil, &size) == noErr, size > 0 else { return [] }
+    guard AudioObjectGetPropertyDataSize(system, &addr, 0, nil, &size) == noErr else { return nil }
+    guard size > 0 else { return [] }
     var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
-    guard AudioObjectGetPropertyData(system, &addr, 0, nil, &size, &ids) == noErr else { return [] }
+    guard AudioObjectGetPropertyData(system, &addr, 0, nil, &size, &ids) == noErr else { return nil }
     return ids
 }
 

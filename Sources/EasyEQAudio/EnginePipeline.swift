@@ -14,15 +14,17 @@ enum PipelineOutcome: Sendable {
 enum DeviceChange: Sendable {
     /// The default output or its sample rate changed, or the output is back: rebuild (the engine debounces).
     case rebuild
-    /// The output device died or vanished and the pipeline was torn down on the queue; wait for it to return.
-    /// Carries the epoch current when it happened so a reply that arrives after a newer build is ignored.
+    /// The output device looks dead: the pipeline is about to be torn down on the queue (tap first). Sent BEFORE
+    /// the teardown so the engine can notice a teardown that wedges. Carries the epoch current at that moment;
+    /// replies that arrive after a newer build are ignored.
+    case teardownStarted(epoch: Int)
+    /// That teardown finished and no usable output exists yet; wait for it to return.
     case deviceLost(epoch: Int)
+    /// The device did not return in time; stop waiting.
+    case gaveUp(epoch: Int)
 }
 
-/// Why the pipeline looked at the devices.
-private enum DeviceEvent: String {
-    case defaultOutput, deviceList, outputAlive, sampleRate
-}
+private typealias DeviceEvent = EngineLogic.DeviceEvent
 
 /// Owns every Core Audio object of the tap pipeline and performs every Core Audio call for it.
 ///
@@ -121,6 +123,10 @@ final class EnginePipeline: @unchecked Sendable {
     /// The pipeline was torn down because its output went away; a returning default output rebuilds it (also when
     /// the event is only a device-list change). Cleared when a build begins and on stop.
     private var waitingForDevice = false
+    private var waitStarted = Date()
+    /// Invalidates scheduled rechecks whenever waiting starts or ends.
+    private var waitToken = 0
+    private var serviceListener: AudioObjectPropertyListenerBlock?
 
     init(processor: EQProcessor) {
         self.processor = processor
@@ -137,8 +143,10 @@ final class EnginePipeline: @unchecked Sendable {
     }
 
     /// Tears down whatever exists and builds a fresh pipeline for `epoch` (from `gate.advance()`).
-    func build(epoch: Int) {
-        queue.async { self.rebuild(epoch: epoch) }
+    /// `reinstallListeners`: also re-register the system-wide listeners (a user-driven retry, e.g. after the audio
+    /// service was restarted, which may have dropped them). Done after the teardown, never before the tap is gone.
+    func build(epoch: Int, reinstallListeners: Bool = false) {
+        queue.async { self.rebuild(epoch: epoch, reinstallListeners: reinstallListeners) }
     }
 
     /// Stops listening and destroys the pipeline. Call `gate.advance()` first so queued builds drop themselves.
@@ -166,14 +174,15 @@ final class EnginePipeline: @unchecked Sendable {
         // The tap goes first: it is what mutes system audio, so no Core Audio call that can stall precedes it.
         teardown()
         listening = false
-        waitingForDevice = false
+        setWaiting(false)
         removeSystemListeners()
     }
 
-    private func rebuild(epoch: Int) {
+    private func rebuild(epoch: Int, reinstallListeners: Bool) {
         guard gate.isCurrent(epoch) else { return }   // superseded before it started
-        waitingForDevice = false
+        setWaiting(false)
         teardown()
+        if reinstallListeners && listening { reinstallSystemListeners() }
         guard gate.isCurrent(epoch) else { return }
         do {
             try buildPipeline(epoch: epoch)
@@ -473,6 +482,19 @@ final class EnginePipeline: @unchecked Sendable {
                 audioLog.error("\(CoreAudioError(call: "AudioObjectAddPropertyListenerBlock(default output)", status: status).description, privacy: .public)")
             }
         }
+        if serviceListener == nil {
+            let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+                audioLog.info("Core Audio service restarted")
+                self?.handleDeviceEvent(.serviceRestarted)
+            }
+            var addr = address(kAudioHardwarePropertyServiceRestarted)
+            let status = AudioObjectAddPropertyListenerBlock(system, &addr, queue, listener)
+            if status == noErr {
+                serviceListener = listener
+            } else {
+                audioLog.error("\(CoreAudioError(call: "AudioObjectAddPropertyListenerBlock(service restarted)", status: status).description, privacy: .public)")
+            }
+        }
         if devicesListener == nil {
             let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 audioLog.info("Device list changed")
@@ -501,23 +523,99 @@ final class EnginePipeline: @unchecked Sendable {
             AudioObjectRemovePropertyListenerBlock(system, &addr, queue, listener)
             devicesListener = nil
         }
+        if let listener = serviceListener {
+            var addr = address(kAudioHardwarePropertyServiceRestarted)
+            AudioObjectRemovePropertyListenerBlock(system, &addr, queue, listener)
+            serviceListener = nil
+        }
+    }
+
+    /// Remove and add the system-wide listeners again. After `coreaudiod` restarted they may be gone.
+    private func reinstallSystemListeners() {
+        audioLog.info("Reinstalling system device listeners")
+        removeSystemListeners()
+        installSystemListeners()
     }
 
     // MARK: - Device events (on `queue`)
 
     /// The default output as it is right now, or `nil` when there is none or it is not usable (not alive, not listed,
-    /// or its identity cannot be read).
-    private func usableDefaultOutput() -> (id: AudioDeviceID, uid: String, rate: Double?)? {
-        guard let id = currentDefaultOutputDeviceID(), deviceIsAlive(id), listedDeviceIDs().contains(id),
+    /// or its identity cannot be read). The cheap system-level checks (default id, device list) come first.
+    /// `list` is `nil` when the device-list query failed: unknown, which does not disqualify the device.
+    private func usableDefaultOutput(list: [AudioDeviceID]?) -> (id: AudioDeviceID, uid: String, rate: Double?)? {
+        guard let id = currentDefaultOutputDeviceID(), EngineLogic.isListed(id, in: list), deviceIsAlive(id),
               let uid = try? getString(id, kAudioDevicePropertyDeviceUID) else { return nil }
         let rate = try? getProperty(id, address(kAudioDevicePropertyNominalSampleRate), initial: Float64(0))
         return (id, uid, rate)
     }
 
-    /// Classifies an event with `EngineLogic.shouldRebuild` and acts: nothing, an immediate teardown (tap first,
-    /// system audio is back at once) or a request to the engine to rebuild.
+    private func setWaiting(_ on: Bool) {
+        waitingForDevice = on
+        waitToken += 1
+        if on {
+            waitStarted = Date()
+            scheduleRecheck(token: waitToken)
+        }
+    }
+
+    private func scheduleRecheck(token: Int) {
+        queue.asyncAfter(deadline: .now() + EngineLogic.waitRecheckSeconds) { [weak self] in
+            self?.recheckWaiting(token: token)
+        }
+    }
+
+    /// While waiting for a lost output device: look again every couple of seconds (an event can be missed), and give
+    /// up after a while so the UI shows a failure with Retry instead of "Starting..." forever.
+    private func recheckWaiting(token: Int) {
+        guard listening, waitingForDevice, token == waitToken else { return }
+        let usable = usableDefaultOutput(list: listedDeviceIDs()) != nil
+        let elapsed = Date().timeIntervalSince(waitStarted)
+        let decision = EngineLogic.waitDecision(elapsed: elapsed, defaultUsable: usable)
+        audioLog.info("Waiting for the output device (\(Int(elapsed)) s): usable default \(usable) -> \(String(describing: decision), privacy: .public)")
+        switch decision {
+        case .rebuild:
+            onDeviceChange?(.rebuild)
+            scheduleRecheck(token: token)   // until the build actually begins
+        case .keepWaiting:
+            scheduleRecheck(token: token)
+        case .giveUp:
+            audioLog.error("Output device did not come back within \(Int(EngineLogic.waitGiveUpSeconds)) s; giving up")
+            setWaiting(false)
+            onDeviceChange?(.gaveUp(epoch: gate.current))
+        }
+    }
+
+    /// The output is (probably) gone: tell the engine, destroy the pipeline FIRST (tap first, so system audio is
+    /// back at once), and only then look at the devices. The early notice lets the engine's watchdog catch a
+    /// teardown that wedges on a hung driver.
+    private func loseOutput(because reason: String) {
+        audioLog.error("Output device lost (\(reason, privacy: .public)); tearing the pipeline down before checking anything else")
+        onDeviceChange?(.teardownStarted(epoch: gate.current))
+        teardown()
+        setWaiting(true)
+        // Safe to ask now: no tap is muting anything. The default may be usable already (the device came back, or
+        // the event was spurious), in which case rebuild; otherwise wait for it.
+        if usableDefaultOutput(list: listedDeviceIDs()) != nil {
+            audioLog.info("Default output is usable; rebuilding")
+            onDeviceChange?(.rebuild)
+        } else {
+            audioLog.info("No usable default output; waiting for the device to return")
+            onDeviceChange?(.deviceLost(epoch: gate.current))
+        }
+    }
+
+    /// Classifies an event with `EngineLogic.shouldRebuild` and acts: nothing, an immediate teardown or a request to
+    /// the engine to rebuild. Events that may mean a dying device (`teardownBeforeQuerying`) destroy the pipeline
+    /// before any query; for the others the checks that do not involve the output driver run first.
     private func handleDeviceEvent(_ event: DeviceEvent) {
         guard listening else { return }
+        if event == .serviceRestarted {
+            // Everything this process knew about the service may be gone, the listeners included.
+            audioLog.info("Service restarted: reinstalling listeners and asking for a rebuild")
+            reinstallSystemListeners()
+            onDeviceChange?(.rebuild)
+            return
+        }
         let hasSession = !session.outputUID.isEmpty
         // A failed or denied engine still retries when the default output changes (a different device may work),
         // but unrelated list / liveness noise must not keep poking it. A pipeline lost to a dead output waits for it.
@@ -525,9 +623,15 @@ final class EnginePipeline: @unchecked Sendable {
             audioLog.info("Device event (\(event.rawValue, privacy: .public)): no pipeline and not waiting for a device; ignoring")
             return
         }
+        if hasSession && EngineLogic.teardownBeforeQuerying(event) {
+            loseOutput(because: event.rawValue)
+            return
+        }
         let snapshot = hasSession ? EngineLogic.SessionSnapshot(outputUID: session.outputUID, sampleRate: session.sampleRate) : nil
-        let target = usableDefaultOutput()
-        let sessionAlive = !hasSession || (deviceIsAlive(session.deviceID) && listedDeviceIDs().contains(session.deviceID))
+        let list = listedDeviceIDs()
+        // Listed first: a device that left the list is gone, and the (possibly hung) driver is never asked about it.
+        let sessionAlive = !hasSession || (EngineLogic.isListed(session.deviceID, in: list) && deviceIsAlive(session.deviceID))
+        let target = usableDefaultOutput(list: list)
         let decision = EngineLogic.shouldRebuild(
             current: snapshot, newDefaultUID: target?.uid, newRate: target?.rate, outputAlive: sessionAlive && target != nil)
         audioLog.info("""
@@ -541,18 +645,7 @@ final class EnginePipeline: @unchecked Sendable {
         case .rebuild:
             onDeviceChange?(.rebuild)
         case .teardownOnly:
-            audioLog.error("Output device is gone or not alive; tearing the pipeline down now and waiting for it")
-            teardown()   // tap first: system audio is un-muted before anything else happens
-            waitingForDevice = true
-            // The default may already be usable again (the device came back under a new object): rebuild right away.
-            let comeback = EngineLogic.shouldRebuild(
-                current: nil, newDefaultUID: target?.uid, newRate: target?.rate, outputAlive: target != nil)
-            if comeback == .rebuild {
-                audioLog.info("Default output is usable again; rebuilding")
-                onDeviceChange?(.rebuild)
-            } else {
-                onDeviceChange?(.deviceLost(epoch: gate.current))
-            }
+            loseOutput(because: "\(event.rawValue): output not alive or not listed")
         }
     }
 }
