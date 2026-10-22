@@ -1,0 +1,36 @@
+# EasyEQ
+
+> EasyEQ (Chinese name: 简易均衡器) is a free, open-source (MIT) system-wide equalizer for macOS 14.4+. It applies a 10-, 15- or 31-band graphic EQ to all audio the Mac plays, using Apple's Core Audio Process Tap, so it needs no audio driver, no virtual sound card and no switching of the output device. It is a native SwiftUI window app (not a menu-bar app), in English and Simplified Chinese.
+
+Key facts:
+
+- Repository: https://github.com/gzldc/EasyEQ — downloads: https://github.com/gzldc/EasyEQ/releases/latest (`EasyEQ-<version>.dmg` or `.zip`)
+- Current version: 0.2.0 (2026-10-22). Requires macOS 14.4 or later; universal binary (Apple silicon + Intel).
+- Price: free, no trial, no time limit, no paid tier. License: MIT.
+- Install: open the DMG, drag EasyEQ to Applications. Not notarized: on first launch use System Settings → Privacy & Security → Open Anyway. Grant the "System Audio Recording" permission (System Settings → Privacy & Security → Screen & System Audio Recording → System Audio Recording Only).
+- Privacy: no network access, no telemetry; audio is processed in memory and never recorded.
+- Built-in presets: Voice, Voice+, Podcast, Movie, Music, Night, Less Bass, Bass Boost, Treble Boost, Flat. Users can save their own presets, organize them in collapsible groups, and import/export them as JSON.
+- Band names are plain language: Sub-bass, Bass, Warmth, Muddiness, Body, Voice, Presence, Clarity, Sibilance, Air. Gain range ±12 dB.
+- Editing: drag sliders, paint across bands with a sideways drag, hover readout, scroll-wheel 0.5 dB steps, Smooth, Reset All, Revert. Shortcuts: ⌘N new, ⌘S save, ⇧⌘S save as, ⌘E effect on/off, ↑/↓ switch presets.
+- Settings: language (system/English/Chinese), appearance (system/light/dark), Launch at Login.
+- Resilience: follows the default output device; steps aside when a device's driver drops out; if macOS's coreaudiod hangs, a "Repair System Audio" button restarts it through the system administrator dialog (equivalent to `sudo killall coreaudiod`).
+- Data locations: presets in `~/Library/Application Support/EasyEQ/Presets/*.json`, groups in `~/Library/Application Support/EasyEQ/groups.json`, settings in the defaults domain `app.easyeq.EasyEQ`.
+- Not supported: per-app EQ, parametric EQ, menu-bar mode, automatic updates, macOS earlier than 14.4.
+
+## Docs
+
+- [README (English)](https://github.com/gzldc/EasyEQ/blob/main/README.md): overview, comparison with Sonora/Radioform/eqMac/FineTune/SoundSource, step-by-step install, user guide, FAQ, uninstall, build from source
+- [README (简体中文)](https://github.com/gzldc/EasyEQ/blob/main/README.zh-CN.md): the same content in Chinese
+- [Changelog](https://github.com/gzldc/EasyEQ/blob/main/CHANGELOG.md): changes per version
+- [License](https://github.com/gzldc/EasyEQ/blob/main/LICENSE): MIT
+
+## Source
+
+- [Sources/EasyEQCore](https://github.com/gzldc/EasyEQ/tree/main/Sources/EasyEQCore): pure logic — band layouts, presets, groups, editing, localization
+- [Sources/EasyEQAudio](https://github.com/gzldc/EasyEQ/tree/main/Sources/EasyEQAudio): Core Audio process tap, aggregate device, biquad EQ processor, engine lifecycle
+- [Sources/EasyEQ](https://github.com/gzldc/EasyEQ/tree/main/Sources/EasyEQ): SwiftUI app
+- [Release workflow](https://github.com/gzldc/EasyEQ/blob/main/.github/workflows/release.yml): how releases are built
+
+## Optional
+
+- [Design documents](https://github.com/gzldc/EasyEQ/tree/main/docs/superpowers/specs): design specs (in Chinese) for v0.1, the UI restyle, v0.2 and audio resilience

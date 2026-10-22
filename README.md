@@ -1,170 +1,80 @@
 <div align="center">
 
-# EasyEQ · 简易均衡器
+# EasyEQ
 
-**一个简单、好看、完全免费的 Mac 系统级均衡器。**<br>
 **A simple, good-looking, completely free system-wide equalizer for Mac.**
 
+**English** | [简体中文](README.zh-CN.md)
+
+[![Latest release](https://img.shields.io/github/v/release/gzldc/EasyEQ)](https://github.com/gzldc/EasyEQ/releases/latest)
 ![macOS 14.4+](https://img.shields.io/badge/macOS-14.4%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-6-orange)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![No driver](https://img.shields.io/badge/driver-none%20needed-brightgreen)
 
-[中文](#中文) · [English](#english) · [下载 Download](https://github.com/gzldc/EasyEQ/releases/latest)
+[**⬇ Download the latest version**](https://github.com/gzldc/EasyEQ/releases/latest) · [Install guide](#install-step-by-step) · [FAQ](#faq--troubleshooting) · [Changelog](CHANGELOG.md)
 
-<img src="docs/images/screenshot-light.jpg" alt="EasyEQ 浅色界面 / light appearance" width="49%"> <img src="docs/images/screenshot-dark.jpg" alt="EasyEQ 深色界面 / dark appearance" width="49%">
+<img src="docs/images/screenshot-light.jpg" alt="EasyEQ main window in the light appearance: preset list on the left, Voice preset selected, a live response curve, and ten sliders labelled Sub-bass, Bass, Warmth, Muddiness, Body, Voice, Presence, Clarity, Sibilance and Air" width="49%"> <img src="docs/images/screenshot-dark.jpg" alt="The same EasyEQ window in the dark appearance" width="49%">
 
 </div>
 
 ---
 
-## 中文
+## At a glance
 
-### 为什么做 EasyEQ
+| | |
+|---|---|
+| **What it is** | A native macOS app that applies an equalizer (EQ) to *all* sound your Mac plays — browsers, video sites, music and video players, calls. |
+| **Who it's for** | Anyone who wants voices clearer or bass tamer without learning audio jargon. Especially good for muddy-sounding speakers such as the Apple Studio Display. |
+| **Price** | Free. No trial, no time limit, no Pro version. |
+| **License** | Open source, [MIT](LICENSE). |
+| **Platform** | macOS 14.4 (Sonoma) or later, Apple silicon and Intel. |
+| **Install** | Download `EasyEQ-<version>.dmg` from [Releases](https://github.com/gzldc/EasyEQ/releases/latest) and drag the app to Applications. |
+| **Needs a driver?** | No. It uses macOS's built-in Core Audio Process Tap. No virtual sound card, no switching output devices. |
+| **Permission** | System Audio Recording (asked once on first launch). Audio is processed locally in real time; nothing is recorded or uploaded. |
+| **Languages** | English and Simplified Chinese (follows the system, or choose in Settings). |
+| **Current version** | 0.2.0 — see the [Changelog](CHANGELOG.md). |
 
-我用 Mac Studio + Studio Display 的扬声器看视频和直播。显示器本身低音偏厚，碰上人声本来就浑的视频，说话声就发闷、听着累。我只想要一个**简单的系统级均衡器**：把低音压一压、咬字提一提，存几个预设随时切换。
+## Contents
 
-试过的软件都不太对：有的要每天倒计时付费，有的要装驱动、还得手动切换输出设备，有的界面只标着“32、64、125……”看不懂。于是就有了 EasyEQ。
+- [Why EasyEQ](#why-easyeq)
+- [Highlights](#highlights)
+- [Compared with other apps](#compared-with-other-apps)
+- [Requirements](#requirements)
+- [Install, step by step](#install-step-by-step)
+- [Quick start (2 minutes)](#quick-start-2-minutes)
+- [User guide](#user-guide)
+- [FAQ & troubleshooting](#faq--troubleshooting)
+- [Privacy](#privacy)
+- [Update & uninstall](#update--uninstall)
+- [How it works](#how-it-works)
+- [Build from source](#build-from-source)
+- [Contributing](#contributing)
+- [Changelog](#changelog)
+- [License](#license)
 
-### 优势
-
-- **完全免费，没有任何限制**：没有试用期、没有每天 30 分钟倒计时、没有“升级专业版”。开源（MIT）。
-- **不装驱动、不改设置**：使用 macOS 自带的系统音频捕获能力（Core Audio Process Tap）。装好、授权一次就能用，**不需要去“声音设置”里切换输出设备**，也不会往系统里塞虚拟声卡。
-- **看得懂**：每个滑块都写着大白话——重低音、浑厚、发闷、咬字、清晰、齿音……不懂音频也知道往哪拖。
-- **为“听清人声”而生**：10 个内置预设，其中“人声”“人声·强”专门压掉闷声、提清咬字，看直播、网课、播客一键变清楚；另有播客、电影、音乐、夜间、低音减弱、低音增强、高音增强和原声。
-- **直接拖、实时听**：按住滑块拖动，声音和曲线同时变化；双击滑块归零。15 / 31 段时还能像画画一样按住鼠标左右划过，一笔画出整条曲线。不用先双击再进二级面板。
-- **预设可分组、可分享**：自己的预设能建分组整理，也能导入 / 导出成文件发给朋友。
-- **安装简单**：下载 DMG，把 App 拖进“应用程序”即可；可选开机自动启动。
-- **存的就是听到的**：保存的预设和你当下听到的一模一样，重启后依然如此。
-- **好看、轻量**：清淡的玻璃风格界面，浅色/深色可选；只在你操作的一瞬间有过渡动画，平时完全静止，几乎不占资源。
-- **中英双语**：默认跟随系统语言，也可在设置里手动切换。
-- **隐私**：不联网、不收集任何数据，权限只用来处理正在播放的声音，不录音。
-
-### 和其他软件对比
-
-| | **EasyEQ** | Sonora | Radioform | eqMac | FineTune | SoundSource |
-|---|---|---|---|---|---|---|
-| 价格 | **完全免费** | 均衡器免费；额外功能每天限时 30 分钟 | 免费 | 基础免费，高级均衡器需付费 Pro | 免费 | 付费 |
-| 开源 | **✅ MIT** | ❌ | ✅ GPL-3.0 | 部分（公开源码停在旧版） | ✅ GPL-3.0 | ❌ |
-| 需要安装音频驱动 | **不需要** | 不需要 | 需要 | 需要 | 不需要 | — |
-| 需要手动切换输出设备 | **不需要** | 不需要 | 需要 | — | 不需要 | 不需要 |
-| 界面形态 | **独立窗口** | 独立窗口 | 菜单栏小面板 | 菜单栏 | 菜单栏 | 菜单栏 |
-| 频段 | **10 / 15 / 31 段可选** | 10 / 20 段等 | 10 段（参数） | 3 段 / 10 段（Pro） | 10 段 | 按 App 均衡 |
-| 频段大白话名称 | **✅** | — | ❌ | ❌ | ❌ | ❌ |
-| 中文界面 | **✅** | ✅ | — | — | — | — |
-| 重点 | 简单、听清人声 | 功能全面 | 轻量开源 | 老牌均衡器 | 按 App 调音量 | 专业音频路由 |
-
-> 对比信息整理于 2026 年 10 月，来自各软件官网与代码仓库；“—”表示未核实。如有变化欢迎提 Issue 指正。
-> 想按 App 分别调音量，FineTune、SoundSource 更合适；只想让 Mac 的声音整体更顺耳，EasyEQ 最省事。
-
-### 主要功能
-
-- **系统级均衡**：对浏览器、视频网站、播放器等所有正在播放的声音生效。
-- **三档频段**：10 段（默认）、15 段、31 段，都是行业标准的图示均衡器频点；切换时按当前曲线自动换算，声音基本不变。
-- **10 个内置预设**：人声（看直播、讲课）、人声·强（说话特别闷时）、播客、电影、音乐、夜间、低音减弱、低音增强、高音增强、原声（不做处理）。
-- **自己的预设**：新建、保存、另存为、改名、删除；每个预设记住自己的段数。
-- **预设分组**：新建分组、把预设移到分组里，分组可折叠；名字和顺序会保存下来。
-- **导入 / 导出**：预设可导出为文件，也可以导入别人分享的预设。
-- **画笔式编辑（15 / 31 段）**：按住鼠标左右划过即可连续“画”出各频段的增益，划得再快也不会漏段；一次竖向拖动只改起始的那一列，横向移动超过半列才会继续画到相邻频段。鼠标悬停会高亮该频段并显示读数，滚轮每格微调 0.5 dB；“平滑”一键柔化曲线，“归零”(Reset All) 一键全部归零，“还原”撤销。
-- **快捷键**：⌘N 新建预设，⌘S 保存，⇧⌘S 另存为，⌘E 打开 / 关闭效果。
-- **开机自动启动**：在设置里打开（需要先把 EasyEQ 移到“应用程序”文件夹）。
-- **实时曲线**：滑块上方的曲线实时显示整体效果。
-- **防爆音**：自动降低整体电平 + 限幅器，所有频段拉满也不会破音；拖动时平滑过渡，没有“咔哒”声。
-- **跟随输出设备**：插拔耳机、切换显示器扬声器时自动跟过去。
-- **关窗口不停**：关掉窗口效果继续，软件留在 Dock；按 ⌘Q 退出后声音立即恢复原样。
-- **外观**：浅色 / 深色 / 跟随系统。
-- **语言**：中文 / English / 跟随系统。
-
-<p align="center"><img src="docs/images/screenshot-31-bands.jpg" alt="31 段模式" width="70%"></p>
-
-### 系统要求
-
-- macOS 14.4 或更高版本（Apple 芯片与 Intel 均可）
-
-### 安装
-
-1. 到 [Releases](https://github.com/gzldc/EasyEQ/releases/latest) 下载最新的 `EasyEQ-<版本>.dmg`，打开后会弹出安装窗口，把左边的 `EasyEQ.app` 拖到右边的“应用程序”文件夹即可。
-2. 目前还没有经过 Apple 公证。第一次打开如果提示“无法验证开发者”：打开“系统设置 → 隐私与安全性”，在页面下方点“仍要打开”（macOS 15 起右键“打开”已不能绕过）。
-3. 第一次启动会请求“系统音频录制”权限，点“允许”。也可以在“系统设置 → 隐私与安全性 → 屏幕与系统音频录制 → 仅系统音频录制”里打开 EasyEQ。
-4. 升级到新版本后，系统可能会再请求一次权限，这是正常的。
-
-### 使用
-
-1. 左边选一个预设，比如“人声”，声音马上生效。
-2. 想微调：按住某个滑块上下拖；双击滑块归零。
-3. 调满意了点“保存”（内置预设会让你另存为新预设）。
-4. 右上角可以切换 10 / 15 / 31 段，或用开关临时关闭效果对比。
-5. 听不到效果？窗口底部出现“没效果？检查权限”时，点它检查上面的音频权限。
-
-### 常见问题
-
-- **为什么需要“系统音频录制”权限？** macOS 规定，处理其他软件播放的声音必须有这个权限。EasyEQ 只在本机实时处理声音，不录音、不保存、不上传。
-- **会影响音质或延迟吗？** 处理在本机实时完成，缓冲很小，看视频口型不会错位；选“原声”或关闭开关时声音与不开软件一致。
-- **退出后声音正常吗？** 按 ⌘Q 退出后，系统声音立即恢复原样。
-
-### 从源码构建
-
-需要 Swift 6.0 或更高版本（Xcode 16 及以上）。
-
-```sh
-swift test                 # 运行测试
-scripts/bundle.sh          # 生成 dist/EasyEQ.app（通用二进制）
-scripts/package.sh 0.1.0   # 生成 dist/EasyEQ-0.1.0.zip 和 .dmg
-```
-
-- 制作 `.dmg` 需要 [dmgbuild](https://github.com/dmgbuild/dmgbuild)：`pip install dmgbuild`（或 `python3 -m venv .build/dmgvenv && .build/dmgvenv/bin/pip install dmgbuild`，再把 `.build/dmgvenv/bin` 加进 `PATH`）。
-- 重新生成 App 图标（`Resources/AppBundle/AppIcon.icns`）：`swift scripts/make-icon.swift /tmp/AppIcon.iconset && iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppBundle/AppIcon.icns`。脚本内置六个备选设计，用 `--design A|B|C|D|E|F` 切换（默认 A，预览见 `docs/images/icon-options/`），例如 `swift scripts/make-icon.swift /tmp/AppIcon.iconset --design C`。
-- 安装窗口背景：`swift scripts/make-dmg-background.swift /tmp/dmgbg && tiffutil -cathidpicheck /tmp/dmgbg/background.png /tmp/dmgbg/background@2x.png -out Resources/DMG/background.tiff`。
-
-- 默认使用临时签名（ad-hoc）。设置环境变量 `SIGN_IDENTITY` 可改用你自己的证书。
-- 本地开发小技巧：如果钥匙串里有名为 `EasyEQ Local Signing` 的自签名代码签名证书，脚本会自动使用它，这样重新编译后不用反复授权系统音频权限。
-
-### 测试版
-
-- 往仓库推送非 `main` 的分支（或在 Actions 里手动运行 “Test build” 工作流），会自动编译并把测试版 DMG / zip 作为该次运行的附件提供下载（保留 14 天），不会发布到 Releases。测试版版本号形如 `0.0.0-test.<编号>`。
-- 带 `-` 的标签（例如 `v0.2.0-beta.1`）会作为预发布（pre-release）发布；`v0.2.0` 这样的标签才是正式版。
-
-### 技术原理
-
-- 用 Core Audio Process Tap 捕获全部系统声音并让原声静音，处理后再输出到当前默认设备，不需要任何驱动。
-- 每个频段是一个 RBJ 峰值双二阶滤波器，串联处理；实时线程中不分配内存、不加锁。
-- 纯逻辑（频段、换算、预设、编辑、设置、多语言）与音频处理都有自动化测试。
-
-### 卸载
-
-1. 退出 EasyEQ，把 `EasyEQ.app` 移到废纸篓。
-2. 删除预设：`~/Library/Application Support/EasyEQ`
-3. 清除设置：`defaults delete app.easyeq.EasyEQ`
-
-### 许可证
-
-[MIT](LICENSE)
-
----
-
-## English
-
-### Why EasyEQ
+## Why EasyEQ
 
 I watch videos and live streams on a Mac Studio with the Studio Display speakers. The display already leans bass-heavy, so voices that are a bit muddy to begin with end up boomy and tiring. All I wanted was a **simple system-wide equalizer**: pull the bass down, lift the diction, save a few presets and switch between them.
 
 Nothing I tried felt right: one had a daily paid countdown, one needed a driver plus manually switching the output device, and others only labelled bands "32, 64, 125…". So I built EasyEQ.
 
-### Highlights
+## Highlights
 
 - **Completely free, no limits** — no trial, no 30-minutes-a-day countdown, no "upgrade to Pro". Open source (MIT).
 - **No driver, no settings to change** — uses macOS's built-in system audio capture (Core Audio Process Tap). Grant permission once and it works; **no switching the output device** in Sound settings, no virtual audio device added to your system.
 - **Readable** — every slider has a plain-language name: Sub-bass, Warmth, Muddiness, Presence, Clarity, Sibilance… you know where to drag without audio knowledge.
-- **Made for clear voices** — 10 built-in presets; Voice and Voice+ cut the boom and bring speech forward for streams, classes and podcasts, alongside Podcast, Movie, Music, Night, Less Bass, Bass Boost, Treble Boost and Flat.
-- **Drag and hear it live** — press and drag a slider; sound and curve change together. Double-click to reset. With 15 or 31 bands you can also paint the curve in one stroke by dragging across the bands. No second panel to open.
-- **Groups and sharing** — organize your own presets into groups, and import / export presets as files to share.
+- **Made for clear voices** — 10 built-in presets. Voice and Voice+ cut the boom and bring speech forward for streams, classes and podcasts, alongside Podcast, Movie, Music, Night, Less Bass, Bass Boost, Treble Boost and Flat.
+- **Drag and hear it live** — press and drag a slider; sound and curve change together. Double-click to reset. With 15 or 31 bands you can paint the whole curve in one stroke by dragging across the bands.
+- **Groups and sharing** — organize your own presets into collapsible groups, and import / export presets as files to share.
 - **Easy install** — download the DMG and drag the app into Applications; optionally launch at login.
 - **What you save is what you hear** — saved presets sound exactly like what you heard, even after a restart.
 - **Good-looking and light** — a soft glass design with light and dark appearances. Animations only play at the moment you act; otherwise the UI is completely still and costs almost nothing.
-- **Chinese & English** — follows the system language, switchable in Settings.
-- **Private** — no network access, no data collection. The permission is only used to process audio that is playing; nothing is recorded.
+- **One-click recovery** — if macOS's audio service gets stuck, EasyEQ tells you and offers a **Repair System Audio** button, no restart needed.
+- **English & Chinese** — follows the system language, switchable in Settings.
+- **Private** — no network access, no data collection.
 
-### Compared with other apps
+## Compared with other apps
 
 | | **EasyEQ** | Sonora | Radioform | eqMac | FineTune | SoundSource |
 |---|---|---|---|---|---|---|
@@ -178,86 +88,315 @@ Nothing I tried felt right: one had a daily paid countdown, one needed a driver 
 | Chinese UI | **✅** | ✅ | — | — | — | — |
 | Focus | Simple, clear voices | Feature-rich | Lightweight, open | Long-standing EQ | Per-app volume | Pro audio routing |
 
-> Compiled in October 2026 from each app's website and repository; "—" means not verified. Corrections via Issues are welcome.
+> Compiled in October 2026 from each app's website and repository; "—" means not verified. Corrections via [Issues](https://github.com/gzldc/EasyEQ/issues) are welcome.
 > If you want per-app volume, FineTune or SoundSource fit better. If you just want your whole Mac to sound easier on the ears, EasyEQ is the simplest.
 
-### Features
+## Requirements
 
-- **System-wide EQ** — applies to everything that plays: browsers, video sites, players.
-- **Three band layouts** — 10 (default), 15 and 31 bands, all industry-standard graphic-EQ frequencies; switching converts along the current curve so the sound barely changes.
-- **10 built-in presets** — Voice (streams, lectures), Voice+ (very muddy speech), Podcast, Movie, Music, Night, Less Bass, Bass Boost, Treble Boost, Flat (no processing).
-- **Your own presets** — new, save, save as, rename, delete; each preset remembers its own band count.
-- **Preset groups** — create groups, move presets into them, collapse them; names and order are remembered.
-- **Import / export** — export a preset to a file, or import presets someone shared.
-- **Paint-style editing (15 / 31 bands)** — press and drag across the bands to paint gains; fast drags never skip a band. A vertical drag changes only its starting column and moves on to neighbours only once it travels sideways past half a column. Hover highlights a band and shows its readout, the scroll wheel nudges it by 0.5 dB per step, Smooth softens the curve, Reset All zeroes every band, Revert undoes it.
-- **Keyboard shortcuts** — ⌘N new preset, ⌘S save, ⇧⌘S save as, ⌘E turn the effect on/off.
-- **Launch at Login** — a switch in Settings (move EasyEQ to the Applications folder first).
-- **Live curve** — the curve above the sliders shows the overall response in real time.
-- **No clipping** — automatic headroom plus a limiter, so even all bands at max won't distort; smooth ramps mean no clicks while dragging.
-- **Follows your output** — plug in headphones or switch speakers and the EQ follows.
-- **Keeps running** — closing the window keeps the effect, with the app in the Dock; ⌘Q quits and the sound returns to normal immediately.
-- **Appearance** — Light / Dark / Follow System.
-- **Language** — 中文 / English / Follow System.
+- macOS **14.4 or later** (the Core Audio Process Tap API first shipped in 14.4).
+- Apple silicon or Intel Mac (the app is a universal binary).
+- About 5 MB of disk space.
+- An administrator password is only needed if you ever use **Repair System Audio**.
 
-### Requirements
+## Install, step by step
 
-- macOS 14.4 or later (Apple silicon and Intel)
+**1. Download.** Open the [latest release](https://github.com/gzldc/EasyEQ/releases/latest) and download `EasyEQ-<version>.dmg` (for example `EasyEQ-0.2.0.dmg`). A `.zip` with the same app is also there if you prefer.
 
-### Install
+**2. Drag to Applications.** Double-click the DMG. A window opens — drag the EasyEQ icon onto the Applications folder, then eject the disk image.
 
-1. Download the latest `EasyEQ-<version>.dmg` from [Releases](https://github.com/gzldc/EasyEQ/releases/latest), open it, and in the window that appears drag `EasyEQ.app` onto the Applications folder.
-2. The app isn't notarized yet. If macOS says it can't verify the developer on first launch, open System Settings → Privacy & Security and click "Open Anyway" near the bottom (since macOS 15, right-click → Open no longer bypasses this).
-3. On first launch EasyEQ asks for the System Audio Recording permission — click Allow. You can also enable it under System Settings → Privacy & Security → Screen & System Audio Recording → System Audio Recording Only.
-4. After updating to a new version, macOS may ask for the permission again. That's expected.
+<p align="center"><img src="docs/images/screenshot-install.jpg" alt="The EasyEQ installer window: the EasyEQ icon on the left, an arrow, and the Applications folder on the right, with the hint 'Drag EasyEQ to Applications to install'" width="60%"></p>
 
-### Usage
+**3. Open it the first time.** EasyEQ is not notarized by Apple yet (that needs a paid developer account), so on first launch macOS may say it *cannot verify the developer*:
 
-1. Pick a preset on the left, e.g. Voice — it applies instantly.
-2. To fine-tune, press and drag a slider; double-click a slider to reset it.
-3. Happy with it? Click Save (built-in presets ask you to save as a new preset).
-4. Switch between 10 / 15 / 31 bands at the top right, or use the switch to compare with the effect off.
-5. No effect? If "No effect? Check permission" appears in the footer, click it to check the audio permission.
+1. Click **Done** (or **OK**) in that dialog.
+2. Open **System Settings → Privacy & Security**.
+3. Scroll down to the message about EasyEQ and click **Open Anyway**, then confirm.
 
-### FAQ
+You only do this once. (Since macOS 15, right-click → Open no longer bypasses this check; use **Open Anyway**.)
 
-- **Why the System Audio Recording permission?** macOS requires it to process sound played by other apps. EasyEQ processes audio locally in real time; nothing is recorded, saved or uploaded.
-- **Does it add latency or change the sound?** Processing is local with a small buffer, so lip-sync stays right. With Flat or the switch off, it sounds the same as without the app.
-- **Is the sound normal after quitting?** Yes — after ⌘Q your system audio returns to normal immediately.
+**4. Allow system audio.** EasyEQ asks for the **System Audio Recording** permission — click **Allow**. If you missed it, open **System Settings → Privacy & Security → Screen & System Audio Recording**, find the **System Audio Recording Only** list and turn on EasyEQ. This permission is what lets any app process sound played by other apps; EasyEQ does not record anything.
 
-### Build from source
+**5. Done.** Play something and pick a preset. The footer shows `Output: <your device>` with a coloured dot when processing is running.
 
-Requires Swift 6.0 or later (Xcode 16+).
+## Quick start (2 minutes)
 
-```sh
-swift test                 # run the tests
-scripts/bundle.sh          # build dist/EasyEQ.app (universal binary)
-scripts/package.sh 0.1.0   # build dist/EasyEQ-0.1.0.zip and .dmg
+1. **Play some audio** — a video, a stream, music.
+2. **Click a preset** on the left. Try **Voice** for talking, **Movie** for films, **Music** for songs. The change is instant.
+3. **Compare** — flip the **Effect** switch (top right) off and on to hear the difference.
+4. **Fine-tune** — drag any slider up (louder) or down (quieter). Double-click a slider to put it back to 0.
+5. **Keep it** — click **Save As…** and give it a name. It appears under **My Presets**.
+6. **Close the window** — the EQ keeps working while EasyEQ stays in the Dock. Quit with **⌘Q** to turn it off completely.
+
+## User guide
+
+### The window
+
+| Area | What it does |
+|---|---|
+| **Sidebar (left)** | *Built-in* presets, *My Presets*, and your groups. Click to apply. **↑ / ↓** move between presets. The **+** button at the bottom opens *New Preset*, *New Group* and *Import Presets…*. |
+| **Header** | Preset name and description, **Bands** (10 / 15 / 31), **Smooth**, **Reset All**, and the **Effect** switch. |
+| **Curve** | The combined frequency response of all bands, updated live. |
+| **Sliders** | One per band, ±12 dB. The number above is the gain; below are a plain-language name and the frequency. |
+| **Footer** | Output device and status, permission hint, **Save As…**, **Revert**, **Save**. |
+
+### What the slider names mean
+
+| Name | Frequency range | Turn it **down** when… | Turn it **up** when… |
+|---|---|---|---|
+| Sub-bass | below 45 Hz | the room rumbles | you want deep impact |
+| Bass | 45–90 Hz | music feels boomy | music feels thin |
+| Warmth | 90–180 Hz | voices sound thick | voices sound cold |
+| Muddiness | 180–350 Hz | voices sound muffled, "boxy" | (rarely needed) |
+| Body | 350–700 Hz | voices sound honky | voices sound hollow |
+| Voice | 700 Hz–1.4 kHz | voices sound nasal | voices sound distant |
+| Presence | 1.4–2.8 kHz | speech is harsh | speech lacks definition |
+| Clarity | 2.8–5.6 kHz | it's piercing | words are hard to make out |
+| Sibilance | 5.6–11 kHz | "s" sounds hiss | it sounds dull |
+| Air | above 11 kHz | there is hiss | you want sparkle |
+
+**Tip for unclear voices:** lower Sub-bass → Muddiness a few dB and raise Presence / Clarity by 2–3 dB. That's what the **Voice** preset does.
+
+### Built-in presets
+
+Values are for the 10-band layout (32 Hz → 16 kHz), in dB.
+
+| Preset | Use it for | 32 | 64 | 125 | 250 | 500 | 1K | 2K | 4K | 8K | 16K |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **Voice** | Streams, lectures, calls | -6 | -5 | -4 | -3 | -1 | 0 | +2 | +2.5 | 0 | 0 |
+| **Voice+** | Very muddy voices | -10 | -9 | -7 | -5 | -2 | 0 | +3 | +3 | 0 | -1 |
+| **Podcast** | Clear speech, softer "s" | -6 | -4 | -2 | -1 | 0 | +1 | +3 | +2 | -1 | -2 |
+| **Movie** | Clear dialogue, a little bass | +2 | +2 | 0 | -1 | 0 | +1 | +2 | +2 | +1 | 0 |
+| **Music** | Gentle lift to bass and treble | +3 | +2 | +1 | 0 | -1 | -1 | 0 | +1 | +2 | +2 |
+| **Night** | Dialogue at low volume | -8 | -6 | -4 | -2 | 0 | +1 | +2 | +2 | 0 | -1 |
+| **Less Bass** | Remove boom and mud | -8 | -7 | -5 | -3 | -1 | 0 | 0 | 0 | 0 | 0 |
+| **Bass Boost** | Fuller bass | +5 | +5 | +4 | +2 | 0 | 0 | 0 | 0 | 0 | 0 |
+| **Treble Boost** | Brighter, crisper | 0 | 0 | 0 | 0 | 0 | +1 | +2 | +3 | +4 | +4 |
+| **Flat** | No processing | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+Built-in presets can't be overwritten. Change one and click **Save As…** to keep your version.
+
+### Bands: 10, 15 or 31
+
+- **10 bands** (default) — 32, 64, 125, 250, 500, 1K, 2K, 4K, 8K, 16K Hz. Easiest.
+- **15 bands** — 25 Hz to 16 kHz in 2/3-octave steps. More control.
+- **31 bands** — 20 Hz to 20 kHz in 1/3-octave steps. Finest control; best edited by painting (below).
+
+Switching converts your current curve to the new layout, so the sound barely changes. Each preset remembers its own band count.
+
+### Editing: drag, paint, hover, scroll
+
+<p align="center"><img src="docs/images/screenshot-31-bands.jpg" alt="EasyEQ with 31 bands: a smooth painted curve that dips in the low frequencies and rises around 2.5 to 4 kHz" width="75%"></p>
+
+- **Drag a slider** up or down. Sound and curve update while you drag.
+- **Paint** — press anywhere in the slider area and drag sideways: every band you cross is set to the pointer's height. Fast strokes never skip a band. A mostly vertical drag only changes the band you started on.
+- **Hover** a band to highlight it and see a readout like `1.25K · +3.0 dB`.
+- **Scroll** (mouse wheel or two-finger swipe) over a band to nudge it by 0.5 dB per step.
+- **Double-click** a slider to reset that band to 0.
+- **Smooth** gently evens out a jagged curve — handy after painting 31 bands.
+- **Reset All** sets every band to 0. **Revert** undoes all unsaved changes.
+- With 31 bands only every other frequency is labelled to avoid clutter; hover to see the rest.
+
+### Saving your own presets
+
+- **Save** (⌘S) — overwrite the selected preset of yours.
+- **Save As…** (⇧⌘S) — save the current sliders as a new preset.
+- **New Preset** (⌘N, or **+ → New Preset**) — start a new preset.
+- **Right-click a preset** for **Rename…**, **Move to Group**, **Export…** and **Delete** (deleting asks for confirmation).
+
+### Groups
+
+Groups are optional; by default your presets are listed flat under **My Presets**.
+
+1. Click **+ → New Group** and name it.
+2. Put presets in it: drag a preset onto the group header, or right-click a preset → **Move to Group → <group>**.
+3. Click a group header to collapse or expand it. **Built-in** can be collapsed too. Collapsed state is remembered.
+4. Right-click a group header for **Rename Group…**, **New Preset Here** and **Delete Group**.
+
+Deleting a group **never deletes its presets** — they move back to *My Presets*.
+
+### Import and export (sharing presets)
+
+- **Export:** right-click a preset → **Export…** and save a `.json` file.
+- **Import:** **+ → Import Presets…** and pick one or more `.json` files. Name clashes get a suffix (e.g. `Voice 2`); broken files are reported and skipped without affecting the others.
+
+The file format is plain JSON:
+
+```json
+{
+  "formatVersion" : 1,
+  "id" : "B3C1D17B-7CF3-4CF0-9DE5-1B4F19B7526B",
+  "name" : "My Voice",
+  "settings" : {
+    "layout" : 10,
+    "gains" : [-6, -5, -4, -3, -1, 0, 2, 2.5, 0, 0]
+  }
+}
 ```
 
-- Building the `.dmg` needs [dmgbuild](https://github.com/dmgbuild/dmgbuild): `pip install dmgbuild` (or `python3 -m venv .build/dmgvenv && .build/dmgvenv/bin/pip install dmgbuild`, then put `.build/dmgvenv/bin` on your `PATH`).
-- Regenerate the app icon (`Resources/AppBundle/AppIcon.icns`): `swift scripts/make-icon.swift /tmp/AppIcon.iconset && iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppBundle/AppIcon.icns`. The script ships six alternative designs; pick one with `--design A|B|C|D|E|F` (default A, previews in `docs/images/icon-options/`), e.g. `swift scripts/make-icon.swift /tmp/AppIcon.iconset --design C`.
-- Installer window background: `swift scripts/make-dmg-background.swift /tmp/dmgbg && tiffutil -cathidpicheck /tmp/dmgbg/background.png /tmp/dmgbg/background@2x.png -out Resources/DMG/background.tiff`.
+`layout` is 10, 15 or 31 and `gains` has exactly that many values in dB, clamped to −12…+12.
 
-- Ad-hoc signed by default. Set `SIGN_IDENTITY` to sign with your own certificate.
-- Local development tip: if your keychain has a self-signed code-signing identity named `EasyEQ Local Signing`, the scripts use it automatically, so rebuilds don't keep asking for the system-audio permission.
+### Keyboard shortcuts
 
-### Test builds
+| Shortcut | Action |
+|---|---|
+| ⌘N | New preset |
+| ⌘S | Save |
+| ⇧⌘S | Save As… |
+| ⌘E | Turn the effect on / off |
+| ↑ / ↓ | Previous / next preset in the sidebar |
+| ⌘, | Settings |
+| ⌘W | Close the window (EQ keeps running) |
+| ⌘Q | Quit (sound returns to normal) |
 
-- Pushing any branch other than `main` (or running the "Test build" workflow manually from the Actions tab) builds a test DMG and zip and attaches them to that run as downloadable artifacts (kept for 14 days). Nothing is published to Releases. Test builds are versioned `0.0.0-test.<run number>`.
-- Tags containing a `-` (e.g. `v0.2.0-beta.1`) are published as pre-releases; a plain tag like `v0.2.0` is a normal release.
+### Settings
 
-### How it works
+<p align="center"><img src="docs/images/screenshot-settings.jpg" alt="EasyEQ Settings window with Language, Appearance and Launch at Login" width="40%"></p>
 
-- A Core Audio Process Tap captures all system audio and mutes the originals; EasyEQ processes it and plays it on the current default output device — no driver involved.
-- Each band is an RBJ peaking biquad filter in series; the real-time thread never allocates or locks.
-- The pure logic (bands, conversion, presets, editing, settings, localization) and the audio processing are covered by automated tests.
+Open with **EasyEQ → Settings…** or **⌘,**.
 
-### Uninstall
+- **Language** — Follow System, English, or 中文.
+- **Appearance** — Follow System, Light, or Dark.
+- **Launch at Login** — start EasyEQ automatically when you log in, so the EQ is always on. Available once EasyEQ is in the Applications folder.
 
-1. Quit EasyEQ and move `EasyEQ.app` to the Trash.
-2. Delete presets: `~/Library/Application Support/EasyEQ`
-3. Clear settings: `defaults delete app.easyeq.EasyEQ`
+### Status messages in the footer
 
-### License
+| Message | Meaning | What to do |
+|---|---|---|
+| `Output: <device>` | Running normally. | Nothing. |
+| `Starting…` | Connecting to the output device. | Wait a second. |
+| `No effect? Check permission` | Sound may be passing through unprocessed. | Click it and enable System Audio Recording for EasyEQ. |
+| `Audio processing isn't running.` + **Retry** | Starting failed. | Click **Retry**. |
+| `The system audio service isn't responding.` + **Retry** / **Repair System Audio** | macOS's audio service (`coreaudiod`) is stuck. | Click **Repair System Audio** (see FAQ). |
 
-[MIT](LICENSE)
+## FAQ & troubleshooting
+
+**I hear no difference.**
+Check that the **Effect** switch is on and that you didn't pick **Flat**. If the footer says `No effect? Check permission`, open System Settings → Privacy & Security → Screen & System Audio Recording → **System Audio Recording Only** and turn on EasyEQ, then quit and reopen EasyEQ.
+
+**macOS says it can't verify the developer / the app is damaged.**
+See [Install step 3](#install-step-by-step): System Settings → Privacy & Security → **Open Anyway**. If macOS reports the app as "damaged" (usually because a download tool added a quarantine flag), you can run `xattr -dr com.apple.quarantine /Applications/EasyEQ.app` in Terminal and open it again.
+
+**My Mac suddenly has no sound and EasyEQ says "The system audio service isn't responding".**
+macOS's own audio service (`coreaudiod`) is stuck — typically after an audio device's driver restarted mid-playback (we have seen this with USB audio devices such as the Studio Display). Click **Repair System Audio** in EasyEQ's footer and enter an administrator password in the macOS dialog; sound comes back in a few seconds and EasyEQ reconnects by itself. EasyEQ never sees the password — the dialog is the system's. Alternatively run this in Terminal, or restart the Mac:
+
+```bash
+sudo killall coreaudiod
+```
+
+**I unplugged headphones / switched speakers.**
+EasyEQ follows the system's default output automatically. If a device's driver drops out, EasyEQ steps aside at once (your sound plays unprocessed) and reconnects when the device is back.
+
+**Does it add latency or change the sound when "off"?**
+Processing is local with a small buffer, so lip-sync stays right. With **Flat** selected or the **Effect** switch off, it sounds the same as without the app.
+
+**Will it distort if I push sliders to +12?**
+No. EasyEQ lowers the overall level automatically and uses a limiter, and all changes are smoothed so there are no clicks.
+
+**Can I EQ one app only (e.g. just the browser)?**
+Not at the moment; EasyEQ processes all system audio. Per-app tools like FineTune or SoundSource do that.
+
+**Can I use it together with another EQ (Radioform, eqMac, Sonora…)?**
+Quit them while using EasyEQ, and uninstall virtual audio drivers you no longer use, so only one app processes the sound.
+
+**Does it work with Bluetooth headphones / AirPods / HDMI / USB DACs?**
+Yes — anything macOS uses as the default output device.
+
+**Does it run in the menu bar?**
+No, it's a normal window app with a Dock icon. Close the window and the EQ keeps running.
+
+**Is it notarized / signed?**
+It is ad-hoc signed and not yet notarized. The full source is here and every release is built by GitHub Actions from the tagged commit ([release workflow](.github/workflows/release.yml)).
+
+## Privacy
+
+- No network access, no analytics, no accounts.
+- Audio is processed in memory in real time and immediately played back; it is never recorded, saved or sent anywhere.
+- Your presets and settings stay on your Mac (see [where data is stored](#where-your-data-is-stored)).
+
+## Update & uninstall
+
+**Update:** download the new DMG and drag EasyEQ to Applications again, choosing **Replace**. Your presets and settings are kept. macOS may ask for the System Audio Recording permission again after an update — that's expected.
+
+### Where your data is stored
+
+| What | Where |
+|---|---|
+| Your presets | `~/Library/Application Support/EasyEQ/Presets/<id>.json` |
+| Groups | `~/Library/Application Support/EasyEQ/groups.json` |
+| Settings (language, appearance, last selection…) | macOS defaults domain `app.easyeq.EasyEQ` |
+
+**Uninstall:**
+
+1. If you turned on **Launch at Login**, turn it off in EasyEQ's Settings first.
+2. Quit EasyEQ (⌘Q) and move `EasyEQ.app` from Applications to the Trash.
+3. Optional — remove your presets and settings:
+
+```bash
+rm -rf ~/Library/Application\ Support/EasyEQ
+```
+
+```bash
+defaults delete app.easyeq.EasyEQ
+```
+
+4. Optional — remove the permission entry in System Settings → Privacy & Security → Screen & System Audio Recording.
+
+## How it works
+
+- A **Core Audio Process Tap** (macOS 14.4+) captures all system audio and mutes the originals. EasyEQ processes the captured audio and plays it through a private aggregate device on the current default output device — no driver, no virtual sound card, nothing changes in Sound settings.
+- Each band is an **RBJ peaking biquad** filter, applied in series (Q 1.41 / 2.1 / 4.3 for 10 / 15 / 31 bands), followed by automatic headroom and a limiter. The real-time audio thread never allocates or locks; gain changes are ramped.
+- All Core Audio setup and teardown runs on a background queue with a watchdog, so a stuck system audio service can't freeze the UI. Device-alive and device-list listeners tear the pipeline down as soon as the output device disappears.
+- Code layout:
+
+| Path | Contents |
+|---|---|
+| `Sources/EasyEQCore` | Pure logic: band layouts, presets, groups, editing, painting, settings, localization (`Resources/*.lproj`). |
+| `Sources/EasyEQAudio` | Core Audio tap, aggregate device, EQ processor, engine lifecycle, system-audio repair. |
+| `Sources/EasyEQ` | SwiftUI app and views. |
+| `Tests/` | Swift Testing suites for core and audio logic. |
+| `scripts/` | `bundle.sh`, `package.sh`, `sign.sh`, icon and DMG-background generators. |
+| `.github/workflows/` | `ci.yml` (tests), `test-build.yml` (test DMGs), `release.yml` (releases). |
+
+## Build from source
+
+Requires Xcode 16 or later (Swift 6 toolchain) on macOS 14.4+.
+
+```bash
+git clone https://github.com/gzldc/EasyEQ.git && cd EasyEQ
+```
+
+```bash
+swift test
+```
+
+```bash
+scripts/bundle.sh
+```
+
+`scripts/bundle.sh` builds `dist/EasyEQ.app` (universal binary). To build the zip and the styled DMG:
+
+```bash
+scripts/package.sh 0.2.0
+```
+
+- The `.dmg` needs [dmgbuild](https://github.com/dmgbuild/dmgbuild): `python3 -m venv .build/dmgvenv && .build/dmgvenv/bin/pip install dmgbuild`, then put `.build/dmgvenv/bin` on your `PATH` (or just `pip install dmgbuild`).
+- Signing is ad-hoc by default. Set `SIGN_IDENTITY` to sign with your own certificate. If your keychain has a self-signed code-signing identity named `EasyEQ Local Signing`, the scripts use it automatically, so rebuilds don't keep asking for the system-audio permission.
+- App icon: `swift scripts/make-icon.swift /tmp/AppIcon.iconset && iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppBundle/AppIcon.icns`. Six designs are built in — choose with `--design A|B|C|D|E|F` (default A; previews in [`docs/images/icon-options/`](docs/images/icon-options/)).
+- Installer background: `swift scripts/make-dmg-background.swift /tmp/dmgbg && tiffutil -cathidpicheck /tmp/dmgbg/background.png /tmp/dmgbg/background@2x.png -out Resources/DMG/background.tiff`.
+
+### Test builds and releases
+
+- **Test builds:** pushing any branch other than `main` (or running **Test build** manually in the Actions tab) builds a DMG and zip as downloadable run artifacts (kept 14 days), versioned `0.0.0-test.<run number>`. Nothing is published to Releases.
+- **Releases:** pushing a tag `vX.Y.Z` builds and publishes a release with `EasyEQ-X.Y.Z.dmg` and `.zip`. Tags with a `-` (e.g. `v0.3.0-beta.1`) become pre-releases.
+
+## Contributing
+
+Bug reports, preset ideas, translations and pull requests are welcome — please open an [Issue](https://github.com/gzldc/EasyEQ/issues) first for larger changes. Run `swift test` before sending a PR. UI strings live in `Sources/EasyEQCore/Resources/<language>.lproj/Localizable.strings`; adding a language means adding one more `.lproj` folder.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md). Downloads are on [Releases](https://github.com/gzldc/EasyEQ/releases).
+
+## License
+
+[MIT](LICENSE) © 2026 shishuai
