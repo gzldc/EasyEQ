@@ -12,7 +12,7 @@ struct EditorFooter: View {
     var body: some View {
         let session = model.session
         HStack(spacing: 8) {
-            DeviceFooter(engine: model.engine)
+            DeviceFooter(engine: model.engine, isRepairing: model.isRepairingAudio) { model.repairSystemAudio() }
             Spacer(minLength: 12)
             Button(localizer.t("editor.saveAs")) {
                 present(NameSheetRequest(mode: .saveAs, initial: model.displayName(for: session.selection)))
@@ -32,6 +32,8 @@ struct EditorFooter: View {
 /// Output device name; observes the engine so it follows device changes.
 private struct DeviceFooter: View {
     @ObservedObject var engine: SystemAudioEngine
+    let isRepairing: Bool
+    let repair: () -> Void
     @EnvironmentObject private var localizer: Localizer
     @Environment(\.theme) private var theme
 
@@ -48,6 +50,11 @@ private struct DeviceFooter: View {
             if isFailed {
                 Button(localizer.t("engine.retry")) { engine.retry() }
                     .buttonStyle(SoftButtonStyle())
+                if engine.coreAudioUnresponsive {
+                    Button(localizer.t("engine.repair"), action: repair)
+                        .buttonStyle(SoftButtonStyle())
+                        .disabled(isRepairing)
+                }
             }
             // Low-key hint: silence while other apps hold output streams is also the normal idle state.
             if engine.permissionSuspected && engine.state != .permissionDenied {
@@ -71,7 +78,8 @@ private struct DeviceFooter: View {
         switch engine.state {
         case .running(let deviceName): return String(format: localizer.t("device.output"), deviceName)
         case .starting: return localizer.t("engine.starting")
-        case .failed: return localizer.t("engine.failed")   // the technical reason is in the log, not the UI
+        case .failed:   // the technical reason is in the log, not the UI
+            return localizer.t(engine.coreAudioUnresponsive ? "engine.unresponsive" : "engine.failed")
         case .stopped, .permissionDenied: return ""
         }
     }

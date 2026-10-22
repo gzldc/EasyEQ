@@ -84,3 +84,6 @@
 "settings.launchAtLogin" = "Launch at Login";
 "settings.launchAtLogin.moveHint" = "Move EasyEQ to the Applications folder to use this.";
 "error.loginItemFailed" = "Couldn't change the login item.";
+"engine.repair" = "Repair System Audio";
+"engine.unresponsive" = "The system audio service isn't responding.";
+"error.repairFailed" = "Couldn't repair system audio.";

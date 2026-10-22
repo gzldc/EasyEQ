@@ -46,6 +46,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var launchAtLogin = false
     /// Localized failure text for the last login-item change; shown next to the toggle.
     @Published private(set) var loginItemError: String?
+    /// The administrator dialog / audio service restart is in progress; the Repair button is disabled meanwhile.
+    @Published private(set) var isRepairingAudio = false
     /// Installed by the app delegate: brings the main window forward so a sheet opened from a menu is visible.
     var requestMainWindow: (() -> Void)?
 
@@ -101,6 +103,29 @@ final class AppModel: ObservableObject {
         applyAppearance()
         applyToEngine()
         engine.start()
+    }
+
+    /// Restarts `coreaudiod` through macOS's administrator authorization dialog (the password never reaches this
+    /// app), then retries the engine. A dismissed dialog does nothing; any other failure shows `error.repairFailed`.
+    func repairSystemAudio() {
+        guard !isRepairingAudio else { return }
+        isRepairingAudio = true
+        Task { [weak self] in
+            let outcome = await SystemAudioRepair.perform()   // runs off the main thread
+            guard let self else { return }
+            switch outcome {
+            case .restarted:
+                // Give coreaudiod a moment to come back before building on it again.
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                self.engine.retry()
+            case .cancelled:
+                break
+            case .failed(let message):
+                presetLog.error("repairSystemAudio failed: \(message, privacy: .public)")
+                self.lastError = self.localizer.t("error.repairFailed")
+            }
+            self.isRepairingAudio = false
+        }
     }
 
     // MARK: - Selection and editing

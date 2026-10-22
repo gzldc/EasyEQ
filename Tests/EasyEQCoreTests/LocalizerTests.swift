@@ -25,6 +25,7 @@ struct LocalizerTests {
         "a11y.expanded", "a11y.collapsed", "a11y.presetCount",
         "menu.newPreset", "menu.save", "menu.saveAs", "menu.toggleEffect",
         "settings.launchAtLogin", "settings.launchAtLogin.moveHint", "error.loginItemFailed",
+        "engine.repair", "engine.unresponsive", "error.repairFailed",
     ]
 
     @Test func everyKeyExistsInBothLanguages() {
@@ -61,5 +62,16 @@ struct LocalizerTests {
         #expect(l.t("editor.smooth") == "平滑")
         #expect(l.t("editor.zero") == "归零")
         #expect(l.t("permission.title") == "简易均衡器需要“系统音频录制”权限才能处理声音")
+    }
+
+    @Test func repairStrings() {
+        let l = Localizer(language: .zhHans)
+        #expect(l.t("engine.repair") == "修复系统声音")
+        #expect(l.t("engine.unresponsive") == "系统音频服务没有响应。")
+        #expect(l.t("error.repairFailed") == "系统声音修复失败。")
+        l.setLanguage(.en)
+        #expect(l.t("engine.repair") == "Repair System Audio")
+        #expect(l.t("engine.unresponsive") == "The system audio service isn't responding.")
+        #expect(l.t("error.repairFailed") == "Couldn't repair system audio.")
     }
 }
