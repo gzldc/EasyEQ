@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // A pending administrator dialog must not be able to restart coreaudiod after we are gone.
+        SystemAudioRepair.cancelRunning()
         // Destroys the tap first (un-muting system audio). Bounded, so a hung coreaudiod cannot block quitting.
         model.engine.stopForTermination(timeout: 2)
     }

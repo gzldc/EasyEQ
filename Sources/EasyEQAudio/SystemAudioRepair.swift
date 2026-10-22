@@ -28,6 +28,26 @@ public enum SystemAudioRepair {
         return .failed(standardError.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
+    /// The osascript that is running now, so quitting can stop it: a late "Allow" must not restart `coreaudiod`
+    /// after the app is gone. `abandoned` is set by `cancelRunning()`.
+    private struct Running {
+        var process: Process?
+        var abandoned = false
+    }
+    private static let running = OSAllocatedUnfairLock(initialState: Running())
+
+    /// Terminates the pending osascript (closing its authorization dialog). For quitting: any repair after this call is refused. Safe to call from any thread.
+    public static func cancelRunning() {
+        let process = running.withLock { state -> Process? in
+            state.abandoned = true
+            return state.process
+        }
+        if let process, process.isRunning {
+            repairLog.info("Terminating the pending repair")
+            process.terminate()
+        }
+    }
+
     /// Runs the repair and waits for it, including for as long as the authorization dialog is open: never call it
     /// on the main thread; use `perform()`.
     static func runBlocking() -> Outcome {
@@ -39,13 +59,26 @@ public enum SystemAudioRepair {
         process.standardOutput = FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
         do {
+            // Registered before launch under the lock, so `cancelRunning()` can never miss it.
+            let proceed = running.withLock { state -> Bool in
+                if state.abandoned { return false }
+                state.process = process
+                return true
+            }
+            guard proceed else { return .cancelled }
             try process.run()
         } catch {
+            running.withLock { $0.process = nil }
             repairLog.error("Could not launch osascript: \(error.localizedDescription, privacy: .public)")
             return .failed(error.localizedDescription)
         }
         let data = errorPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        let abandoned = running.withLock { state -> Bool in
+            state.process = nil
+            return state.abandoned
+        }
+        if abandoned { return .cancelled }
         let outcome = classify(exitCode: process.terminationStatus, standardError: String(decoding: data, as: UTF8.self))
         switch outcome {
         case .restarted: repairLog.info("coreaudiod restarted")
