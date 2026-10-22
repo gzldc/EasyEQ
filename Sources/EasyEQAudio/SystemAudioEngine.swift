@@ -26,6 +26,10 @@ public final class SystemAudioEngine: ObservableObject {
     /// A hint only (a paused tab also holds an output stream open); the pipeline keeps running and is rebuilt
     /// when the app is next activated.
     @Published public private(set) var permissionSuspected = false
+    /// True when the last failure was the build watchdog timing out, i.e. `coreaudiod` itself is not answering.
+    /// Only a restart of the audio service helps then, so the UI offers a repair next to Retry. Cleared by the next
+    /// build, by any sign of life from the pipeline, by any other failure, and by a stop.
+    @Published public private(set) var coreAudioUnresponsive = false
     public let processor: EQProcessor
 
     private let pipeline: EnginePipeline
@@ -42,8 +46,8 @@ public final class SystemAudioEngine: ObservableObject {
         pipeline.publish = { [weak self] epoch, outcome in
             Task { @MainActor in self?.apply(outcome, epoch: epoch) }
         }
-        pipeline.onDeviceChange = { [weak self] in
-            Task { @MainActor in self?.scheduleRebuild() }
+        pipeline.onDeviceChange = { [weak self] change in
+            Task { @MainActor in self?.apply(change) }
         }
         activeObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
@@ -114,6 +118,7 @@ public final class SystemAudioEngine: ObservableObject {
         watchdogTask?.cancel()
         watchdogTask = nil
         permissionSuspected = false
+        setUnresponsive(.stopped)
         pipeline.gate.advance()   // results of any build issued earlier are now stale
         if wasActive { audioLog.info("stopped") }
         state = .stopped
@@ -124,6 +129,7 @@ public final class SystemAudioEngine: ObservableObject {
         monitorTask?.cancel()
         monitorTask = nil
         permissionSuspected = false
+        setUnresponsive(.buildStarted)
         state = .starting
         let epoch = pipeline.gate.advance()
         startWatchdog(epoch: epoch)
@@ -143,6 +149,7 @@ public final class SystemAudioEngine: ObservableObject {
             else { return }
             audioLog.error("Audio build did not finish within \(EngineLogic.buildWatchdogSeconds) s; Core Audio may be unresponsive")
             self.state = .failed("Core Audio did not respond within \(EngineLogic.buildWatchdogSeconds) s")
+            self.setUnresponsive(.watchdogFired)
         }
     }
 
@@ -155,19 +162,47 @@ public final class SystemAudioEngine: ObservableObject {
             watchdogTask = nil
             // A build that finished late, after the watchdog gave up, is progressing again.
             if case .failed = state { state = .starting }
+            setUnresponsive(.pipelineResponded)
         case .failed(let failure):
             watchdogTask?.cancel()
             watchdogTask = nil
             state = failure
+            setUnresponsive(.otherFailure)
         case .running(let deviceName, let context, let own):
             watchdogTask?.cancel()
             watchdogTask = nil
             state = .running(deviceName: deviceName)
+            setUnresponsive(.pipelineResponded)
             startMonitoring(context: context, ownProcess: own)
         }
     }
 
+    private func setUnresponsive(_ event: EngineLogic.UnresponsiveEvent) {
+        let value = EngineLogic.coreAudioUnresponsive(after: event)
+        if value != coreAudioUnresponsive { coreAudioUnresponsive = value }
+    }
+
     // MARK: - Device / rate changes
+
+    /// A device event the pipeline decided matters (it already ignored the rest).
+    private func apply(_ change: DeviceChange) {
+        guard wantsRunning else { return }
+        switch change {
+        case .rebuild:
+            scheduleRebuild()
+        case .deviceLost(let epoch):
+            // The pipeline is already gone (torn down on its queue). A reply that crosses a newer build is stale.
+            guard pipeline.gate.isCurrent(epoch) else { return }
+            audioLog.info("Output device lost; waiting for it to come back")
+            rebuildTask?.cancel()
+            rebuildTask = nil
+            monitorTask?.cancel()
+            monitorTask = nil
+            permissionSuspected = false
+            setUnresponsive(.buildStarted)
+            state = .starting
+        }
+    }
 
     /// Coalesces bursts of change notifications, then rebuilds.
     private func scheduleRebuild() {

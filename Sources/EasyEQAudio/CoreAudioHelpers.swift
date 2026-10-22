@@ -72,6 +72,36 @@ func defaultOutputDeviceID() throws -> AudioDeviceID {
     return id
 }
 
+/// IDs of all devices the system currently lists (empty if the query fails). Quiet: a failure is data here.
+func listedDeviceIDs() -> [AudioDeviceID] {
+    var addr = address(kAudioHardwarePropertyDevices)
+    var size: UInt32 = 0
+    let system = AudioObjectID(kAudioObjectSystemObject)
+    guard AudioObjectGetPropertyDataSize(system, &addr, 0, nil, &size) == noErr, size > 0 else { return [] }
+    var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
+    guard AudioObjectGetPropertyData(system, &addr, 0, nil, &size, &ids) == noErr else { return [] }
+    return ids
+}
+
+/// Whether the device object still exists and reports itself alive. Quiet: a vanished object answers with an
+/// error, which simply means "not alive".
+func deviceIsAlive(_ device: AudioDeviceID) -> Bool {
+    guard device != AudioDeviceID(kAudioObjectUnknown) else { return false }
+    var addr = address(kAudioDevicePropertyDeviceIsAlive)
+    var alive: UInt32 = 0
+    var size = UInt32(MemoryLayout<UInt32>.size)
+    return AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &alive) == noErr && alive != 0
+}
+
+/// The default output device if there is one (quiet variant of `defaultOutputDeviceID`).
+func currentDefaultOutputDeviceID() -> AudioDeviceID? {
+    var addr = address(kAudioHardwarePropertyDefaultOutputDevice)
+    var id = AudioDeviceID(kAudioObjectUnknown)
+    var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+    let status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &id)
+    return status == noErr && id != AudioDeviceID(kAudioObjectUnknown) ? id : nil
+}
+
 /// Sets `kAudioDevicePropertyIOProcStreamUsage` for `procID` on `scope`: the returned flag `i` turns stream `i` on or off.
 /// The property payload is `AudioHardwareIOProcStreamUsage` (mIOProc pointer, mNumberStreams, mStreamIsOn[]).
 /// Reads the current value first so the stream count is the one the device reports; returns the flags applied.

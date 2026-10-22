@@ -10,6 +10,20 @@ enum PipelineOutcome: Sendable {
     case awaitingStart
 }
 
+/// What the pipeline asks the engine to do about a device event it has already classified (see `EngineLogic.shouldRebuild`).
+enum DeviceChange: Sendable {
+    /// The default output or its sample rate changed, or the output is back: rebuild (the engine debounces).
+    case rebuild
+    /// The output device died or vanished and the pipeline was torn down on the queue; wait for it to return.
+    /// Carries the epoch current when it happened so a reply that arrives after a newer build is ignored.
+    case deviceLost(epoch: Int)
+}
+
+/// Why the pipeline looked at the devices.
+private enum DeviceEvent: String {
+    case defaultOutput, deviceList, outputAlive, sampleRate
+}
+
 /// Owns every Core Audio object of the tap pipeline and performs every Core Audio call for it.
 ///
 /// Threading contract:
@@ -38,8 +52,9 @@ final class EnginePipeline: @unchecked Sendable {
 
     /// Set once, before the first request, by the owner; read on `queue` afterwards.
     var publish: Publish?
-    /// Called (on `queue`) when the default output device or its sample rate changed.
-    var onDeviceChange: (@Sendable () -> Void)?
+    /// Called (on `queue`) when a device event needs the engine's attention. Events that do not concern the
+    /// current pipeline never reach it.
+    var onDeviceChange: (@Sendable (DeviceChange) -> Void)?
 
     // MARK: Queue-confined state
 
@@ -58,7 +73,11 @@ final class EnginePipeline: @unchecked Sendable {
         var deviceID = AudioDeviceID(kAudioObjectUnknown)
         var context: RenderContext?
         var rateListener: AudioObjectPropertyListenerBlock?
+        var aliveListener: AudioObjectPropertyListenerBlock?
         var ownProcess: AudioObjectID?
+        /// What this pipeline was built against; empty until the output device is resolved.
+        var outputUID = ""
+        var sampleRate = 0.0
     }
 
     /// Everything `destroy` needs, detached from the session so it can run on any thread.
@@ -96,6 +115,12 @@ final class EnginePipeline: @unchecked Sendable {
 
     private var session = Session()
     private var systemListener: AudioObjectPropertyListenerBlock?
+    private var devicesListener: AudioObjectPropertyListenerBlock?
+    /// Set between listening starting and stopping; late callbacks after a stop are ignored.
+    private var listening = false
+    /// The pipeline was torn down because its output went away; a returning default output rebuilds it (also when
+    /// the event is only a device-list change). Cleared when a build begins and on stop.
+    private var waitingForDevice = false
 
     init(processor: EQProcessor) {
         self.processor = processor
@@ -103,9 +128,12 @@ final class EnginePipeline: @unchecked Sendable {
 
     // MARK: - Requests (any thread, non-blocking)
 
-    /// Starts watching the default output device. Idempotent.
+    /// Starts watching the default output device and the device list. Idempotent.
     func startListening() {
-        queue.async { self.installSystemListener() }
+        queue.async {
+            self.listening = true
+            self.installSystemListeners()
+        }
     }
 
     /// Tears down whatever exists and builds a fresh pipeline for `epoch` (from `gate.advance()`).
@@ -137,11 +165,14 @@ final class EnginePipeline: @unchecked Sendable {
     private func stopNow() {
         // The tap goes first: it is what mutes system audio, so no Core Audio call that can stall precedes it.
         teardown()
-        removeSystemListener()
+        listening = false
+        waitingForDevice = false
+        removeSystemListeners()
     }
 
     private func rebuild(epoch: Int) {
         guard gate.isCurrent(epoch) else { return }   // superseded before it started
+        waitingForDevice = false
         teardown()
         guard gate.isCurrent(epoch) else { return }
         do {
@@ -196,6 +227,9 @@ final class EnginePipeline: @unchecked Sendable {
         let rate = try getProperty(deviceID, address(kAudioDevicePropertyNominalSampleRate), initial: Float64(0))
         audioLog.info("Output device \(deviceName, privacy: .public) (\(deviceUID, privacy: .public)) at \(rate) Hz")
         guard rate > 0 else { throw CoreAudioError(call: "nominal sample rate (zero)", status: kAudioHardwareBadPropertySizeError) }
+        session.outputUID = deviceUID
+        session.sampleRate = rate
+        installAliveListener()
 
         let tapFormat = try getProperty(
             tapID, address(kAudioTapPropertyFormat), initial: AudioStreamBasicDescription())
@@ -331,7 +365,7 @@ final class EnginePipeline: @unchecked Sendable {
         // Follow sample-rate changes of the output device. The listener runs on `queue`.
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             audioLog.info("Output device nominal sample rate changed")
-            self?.onDeviceChange?()
+            self?.handleDeviceEvent(.sampleRate)
         }
         var rateAddress = address(kAudioDevicePropertyNominalSampleRate)
         if AudioObjectAddPropertyListenerBlock(session.deviceID, &rateAddress, queue, listener) == noErr {
@@ -357,6 +391,10 @@ final class EnginePipeline: @unchecked Sendable {
         if let listener = s.rateListener {
             var rateAddress = address(kAudioDevicePropertyNominalSampleRate)
             AudioObjectRemovePropertyListenerBlock(s.deviceID, &rateAddress, queue, listener)
+        }
+        if let listener = s.aliveListener {
+            var aliveAddress = address(kAudioDevicePropertyDeviceIsAlive)
+            AudioObjectRemovePropertyListenerBlock(s.deviceID, &aliveAddress, queue, listener)
         }
     }
 
@@ -404,25 +442,117 @@ final class EnginePipeline: @unchecked Sendable {
         return list.map { Int($0.mNumberChannels) }
     }
 
-    private func installSystemListener() {
-        guard systemListener == nil else { return }
+    /// Output device liveness, for the session's device. Removed in `teardown`.
+    private func installAliveListener() {
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            audioLog.info("Default output device changed")
-            self?.onDeviceChange?()
+            audioLog.info("Output device liveness changed")
+            self?.handleDeviceEvent(.outputAlive)
         }
-        var addr = address(kAudioHardwarePropertyDefaultOutputDevice)
-        let status = AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, queue, listener)
+        var aliveAddress = address(kAudioDevicePropertyDeviceIsAlive)
+        let status = AudioObjectAddPropertyListenerBlock(session.deviceID, &aliveAddress, queue, listener)
         if status == noErr {
-            systemListener = listener
+            session.aliveListener = listener
+            audioLog.info("Watching output device liveness (device \(self.session.deviceID))")
         } else {
-            audioLog.error("\(CoreAudioError(call: "AudioObjectAddPropertyListenerBlock(default output)", status: status).description, privacy: .public)")
+            audioLog.error("\(CoreAudioError(call: "AudioObjectAddPropertyListenerBlock(device is alive)", status: status).description, privacy: .public)")
         }
     }
 
-    private func removeSystemListener() {
-        guard let listener = systemListener else { return }
-        var addr = address(kAudioHardwarePropertyDefaultOutputDevice)
-        AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, queue, listener)
-        systemListener = nil
+    private func installSystemListeners() {
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        if systemListener == nil {
+            let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+                audioLog.info("Default output device changed")
+                self?.handleDeviceEvent(.defaultOutput)
+            }
+            var addr = address(kAudioHardwarePropertyDefaultOutputDevice)
+            let status = AudioObjectAddPropertyListenerBlock(system, &addr, queue, listener)
+            if status == noErr {
+                systemListener = listener
+            } else {
+                audioLog.error("\(CoreAudioError(call: "AudioObjectAddPropertyListenerBlock(default output)", status: status).description, privacy: .public)")
+            }
+        }
+        if devicesListener == nil {
+            let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+                audioLog.info("Device list changed")
+                self?.handleDeviceEvent(.deviceList)
+            }
+            var addr = address(kAudioHardwarePropertyDevices)
+            let status = AudioObjectAddPropertyListenerBlock(system, &addr, queue, listener)
+            if status == noErr {
+                devicesListener = listener
+                audioLog.info("Watching default output device and device list")
+            } else {
+                audioLog.error("\(CoreAudioError(call: "AudioObjectAddPropertyListenerBlock(devices)", status: status).description, privacy: .public)")
+            }
+        }
+    }
+
+    private func removeSystemListeners() {
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        if let listener = systemListener {
+            var addr = address(kAudioHardwarePropertyDefaultOutputDevice)
+            AudioObjectRemovePropertyListenerBlock(system, &addr, queue, listener)
+            systemListener = nil
+        }
+        if let listener = devicesListener {
+            var addr = address(kAudioHardwarePropertyDevices)
+            AudioObjectRemovePropertyListenerBlock(system, &addr, queue, listener)
+            devicesListener = nil
+        }
+    }
+
+    // MARK: - Device events (on `queue`)
+
+    /// The default output as it is right now, or `nil` when there is none or it is not usable (not alive, not listed,
+    /// or its identity cannot be read).
+    private func usableDefaultOutput() -> (id: AudioDeviceID, uid: String, rate: Double?)? {
+        guard let id = currentDefaultOutputDeviceID(), deviceIsAlive(id), listedDeviceIDs().contains(id),
+              let uid = try? getString(id, kAudioDevicePropertyDeviceUID) else { return nil }
+        let rate = try? getProperty(id, address(kAudioDevicePropertyNominalSampleRate), initial: Float64(0))
+        return (id, uid, rate)
+    }
+
+    /// Classifies an event with `EngineLogic.shouldRebuild` and acts: nothing, an immediate teardown (tap first,
+    /// system audio is back at once) or a request to the engine to rebuild.
+    private func handleDeviceEvent(_ event: DeviceEvent) {
+        guard listening else { return }
+        let hasSession = !session.outputUID.isEmpty
+        // A failed or denied engine still retries when the default output changes (a different device may work),
+        // but unrelated list / liveness noise must not keep poking it. A pipeline lost to a dead output waits for it.
+        if !hasSession && !waitingForDevice && event != .defaultOutput {
+            audioLog.info("Device event (\(event.rawValue, privacy: .public)): no pipeline and not waiting for a device; ignoring")
+            return
+        }
+        let snapshot = hasSession ? EngineLogic.SessionSnapshot(outputUID: session.outputUID, sampleRate: session.sampleRate) : nil
+        let target = usableDefaultOutput()
+        let sessionAlive = !hasSession || (deviceIsAlive(session.deviceID) && listedDeviceIDs().contains(session.deviceID))
+        let decision = EngineLogic.shouldRebuild(
+            current: snapshot, newDefaultUID: target?.uid, newRate: target?.rate, outputAlive: sessionAlive && target != nil)
+        audioLog.info("""
+            Device event (\(event.rawValue, privacy: .public)): pipeline \(snapshot?.outputUID ?? "none", privacy: .public) \
+            @ \(snapshot?.sampleRate ?? 0) Hz, session output alive \(sessionAlive), \
+            default \(target?.uid ?? "unusable", privacy: .public) @ \(target?.rate ?? 0) Hz -> \(String(describing: decision), privacy: .public)
+            """)
+        switch decision {
+        case .none:
+            break
+        case .rebuild:
+            onDeviceChange?(.rebuild)
+        case .teardownOnly:
+            audioLog.error("Output device is gone or not alive; tearing the pipeline down now and waiting for it")
+            teardown()   // tap first: system audio is un-muted before anything else happens
+            waitingForDevice = true
+            // The default may already be usable again (the device came back under a new object): rebuild right away.
+            let comeback = EngineLogic.shouldRebuild(
+                current: nil, newDefaultUID: target?.uid, newRate: target?.rate, outputAlive: target != nil)
+            if comeback == .rebuild {
+                audioLog.info("Default output is usable again; rebuilding")
+                onDeviceChange?(.rebuild)
+            } else {
+                onDeviceChange?(.deviceLost(epoch: gate.current))
+            }
+        }
     }
 }

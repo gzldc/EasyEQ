@@ -76,4 +76,49 @@ struct EngineLogicTests {
         let cleared = hint.observe(sawSignal: true, callbacks: 50, othersOutputting: true)   // audio arrived
         #expect(!cleared)
     }
+
+    // MARK: Rebuild decisions
+
+    private let current = EngineLogic.SessionSnapshot(outputUID: "A", sampleRate: 48_000)
+
+    @Test func unrelatedDeviceListChangeDoesNothing() {
+        // Same default, same rate, output alive: some other device was plugged in or removed.
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "A", newRate: 48_000, outputAlive: true) == .none)
+        // Rate unknown never counts as a change.
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "A", newRate: nil, outputAlive: true) == .none)
+        // Floating point noise is not a rate change.
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "A", newRate: 48_000.2, outputAlive: true) == .none)
+    }
+
+    @Test func differentDefaultOutputRebuilds() {
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "B", newRate: 48_000, outputAlive: true) == .rebuild)
+    }
+
+    @Test func sampleRateChangeRebuilds() {
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "A", newRate: 44_100, outputAlive: true) == .rebuild)
+    }
+
+    @Test func deadOutputTearsDownWithoutRebuilding() {
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "A", newRate: 48_000, outputAlive: false) == .teardownOnly)
+        // Even when the default now points elsewhere but that is not usable either.
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: "B", newRate: 48_000, outputAlive: false) == .teardownOnly)
+        // No default output at all.
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: nil, newRate: nil, outputAlive: false) == .teardownOnly)
+        #expect(EngineLogic.shouldRebuild(current: current, newDefaultUID: nil, newRate: nil, outputAlive: true) == .teardownOnly)
+    }
+
+    @Test func noPipelineRebuildsOnceTheDefaultIsAlive() {
+        #expect(EngineLogic.shouldRebuild(current: nil, newDefaultUID: "A", newRate: 48_000, outputAlive: true) == .rebuild)
+        #expect(EngineLogic.shouldRebuild(current: nil, newDefaultUID: "A", newRate: nil, outputAlive: false) == .none)
+        #expect(EngineLogic.shouldRebuild(current: nil, newDefaultUID: nil, newRate: nil, outputAlive: true) == .none)
+    }
+
+    // MARK: Failure kind
+
+    @Test func onlyTheWatchdogMarksCoreAudioUnresponsive() {
+        #expect(EngineLogic.coreAudioUnresponsive(after: .watchdogFired))
+        for event in [EngineLogic.UnresponsiveEvent.buildStarted, .pipelineResponded, .otherFailure, .stopped] {
+            #expect(!EngineLogic.coreAudioUnresponsive(after: event))
+        }
+    }
 }

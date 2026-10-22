@@ -53,6 +53,54 @@ enum EngineLogic {
         wantsRunning && epochIsCurrent && state == .starting
     }
 
+    /// What the engine knows about a running (or starting) pipeline, for deciding whether a device event matters.
+    struct SessionSnapshot: Equatable, Sendable {
+        var outputUID: String
+        var sampleRate: Double
+    }
+
+    enum RebuildDecision: Equatable, Sendable {
+        /// The event does not concern the current pipeline.
+        case none
+        /// The output is gone (not alive / not listed / no default): destroy the pipeline now, rebuild once it is back.
+        case teardownOnly
+        case rebuild
+    }
+
+    /// Sample rates closer than this are the same rate.
+    static let sampleRateTolerance = 0.5
+
+    /// Decides what a device event (default output changed, device list changed, liveness or rate changed) means for
+    /// the pipeline. Only a different default output UID, a different sample rate, or a device coming back warrants
+    /// a rebuild; a device-list change that leaves the output alone must not touch the pipeline (a rebuild mutes
+    /// system audio for a moment).
+    /// - Parameters:
+    ///   - current: the running pipeline, or `nil` if there is none.
+    ///   - newDefaultUID: UID of the system default output right now, `nil` if it cannot be resolved.
+    ///   - newRate: its nominal sample rate, `nil` if unknown (an unknown rate never triggers a rebuild).
+    ///   - outputAlive: the pipeline's output device and the default output device are both alive and listed.
+    static func shouldRebuild(
+        current: SessionSnapshot?, newDefaultUID: String?, newRate: Double?, outputAlive: Bool
+    ) -> RebuildDecision {
+        guard let current else {
+            return newDefaultUID != nil && outputAlive ? .rebuild : .none
+        }
+        guard outputAlive, let newDefaultUID else { return .teardownOnly }
+        if newDefaultUID != current.outputUID { return .rebuild }
+        if let newRate, abs(newRate - current.sampleRate) > sampleRateTolerance { return .rebuild }
+        return .none
+    }
+
+    /// Whether the "Core Audio is not responding" state (watchdog timeout) is showing. Only the watchdog sets it;
+    /// the next build, any sign of life from the pipeline, any other failure, and a stop all clear it.
+    enum UnresponsiveEvent: Sendable {
+        case watchdogFired, buildStarted, pipelineResponded, otherFailure, stopped
+    }
+
+    static func coreAudioUnresponsive(after event: UnresponsiveEvent) -> Bool {
+        event == .watchdogFired
+    }
+
     /// Calls that the system gates behind the audio-capture permission. Their failure means "permission".
     static func state(forFailedCall call: String, description: String) -> EngineState {
         let gated = ["AudioHardwareCreateProcessTap", "AudioDeviceStart"]
